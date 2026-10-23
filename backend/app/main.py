@@ -11,6 +11,7 @@ from app.api import auth
 from app.api.routes import authed, router, ws_router
 from app.config import get_settings
 from app.errors import DomainError
+from app.realtime import relay_from_redis
 from app.services.closer import run_closer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -20,11 +21,14 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     stop = asyncio.Event()
-    task = asyncio.create_task(run_closer(settings.closer_interval_seconds, stop)) if settings.run_closer else None
+    tasks = []
+    if settings.run_closer:
+        tasks.append(asyncio.create_task(run_closer(settings.closer_interval_seconds, stop)))
+    if settings.redis_url:
+        tasks.append(asyncio.create_task(relay_from_redis(stop)))
     yield
     stop.set()
-    if task:
-        await task
+    await asyncio.gather(*tasks)
 
 
 app = FastAPI(

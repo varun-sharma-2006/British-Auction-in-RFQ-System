@@ -9,7 +9,10 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/british_auction"
     cors_origins: str = "http://localhost:5173"
     closer_interval_seconds: float = 2.0
+    # In-process closer. Turn off when Celery beat + worker run it instead (docker-compose does this).
     run_closer: bool = True
+    # Set to enable Redis pub/sub fan-out (multiple API replicas) and the Celery broker.
+    redis_url: str | None = None
 
     # Auth. Override JWT_SECRET in every real deployment.
     jwt_secret: str = "dev-only-change-me-please-32-bytes!!"
