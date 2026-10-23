@@ -62,6 +62,7 @@ Each role signs in to its own dashboard (both update live):
 * **Pure rules engine**, unit-tested on its own, plus a TypeScript mirror that tells suppliers *before* they submit
   whether their bid will extend the auction. Both are tested against the same scenarios.
 * **Real roles.** JWT auth: buyers create RFQs, suppliers bid, and a supplier can only bid as their own company.
+* **See the load balancing live:** the app's **System** page fires a burst of parallel requests and charts which server instance answered each one. On the live demo, Vercel's edge spreads 80 requests over ~50 auto-scaled instances; under `docker compose`, nginx spreads them over the API replicas.
 * **Load balanced.** In `docker-compose`, nginx spreads traffic over **3 API replicas** (`least_conn`, Docker DNS
   re-resolution, WebSocket upgrade). Replicas are stateless (JWT auth, row locks in Postgres, updates via Redis), so no
   sticky sessions are needed. A test runs two real API processes and shows a bid on replica A reaching a browser on
