@@ -3,8 +3,10 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 
 # Must be set before the app (and its engine) is imported.
-_DB = os.path.join(tempfile.gettempdir(), "british_auction_test.db")
-os.environ["DATABASE_URL"] = f"sqlite:///{_DB}"
+# TEST_DATABASE_URL=postgresql+psycopg://... runs the suite against PostgreSQL (CI does this);
+# otherwise a throwaway SQLite file is used so the tests run anywhere.
+_SQLITE = "sqlite:///" + os.path.join(tempfile.gettempdir(), "british_auction_test.db")
+os.environ["DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL", _SQLITE)
 os.environ["RUN_CLOSER"] = "false"
 
 import pytest  # noqa: E402
