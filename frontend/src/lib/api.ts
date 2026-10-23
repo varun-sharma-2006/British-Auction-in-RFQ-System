@@ -166,6 +166,14 @@ export interface BidInput {
   remarks?: string;
 }
 
+export type AvailabilityKind = "email" | "company" | "reference-id";
+
+export interface Availability {
+  value: string;
+  available: boolean;
+  checked_by: "bloom" | "database";
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -220,4 +228,6 @@ export const api = {
   createSupplier: (name: string, contact_email?: string) =>
     request<Supplier>("/suppliers", { method: "POST", body: JSON.stringify({ name, contact_email }) }),
   metrics: () => request<Metrics>("/metrics"),
+  availability: (kind: AvailabilityKind, value: string) =>
+    request<Availability>(`/availability/${kind}?value=${encodeURIComponent(value)}`),
 };

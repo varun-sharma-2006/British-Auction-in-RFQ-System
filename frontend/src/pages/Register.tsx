@@ -3,6 +3,8 @@ import { Link, Navigate, useNavigate } from "react-router-dom";
 import { ErrorBox } from "../components/common";
 import type { Role } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { useAvailability } from "../lib/useAvailability";
+import { AvailabilityHint } from "../components/AvailabilityHint";
 import { AuthShell } from "./Login";
 
 export function RegisterPage() {
@@ -12,6 +14,10 @@ export function RegisterPage() {
   const [f, setF] = useState({ full_name: "", email: "", password: "", company_name: "" });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const emailCheck = useAvailability("email", f.email, /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email.trim()));
+  const companyCheck = useAvailability("company", f.company_name, role === "SUPPLIER" && f.company_name.trim().length >= 2);
+  const emailTaken = emailCheck.status === "done" && !emailCheck.result.available;
 
   if (user) return <Navigate to="/" replace />;
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((p) => ({ ...p, [k]: e.target.value }));
@@ -54,11 +60,15 @@ export function RegisterPage() {
             <span className="label">Company (carrier) name</span>
             <input required minLength={2} value={f.company_name} onChange={set("company_name")}
               placeholder="Colleagues using the same name share one position in the ranking" />
+            <AvailabilityHint state={companyCheck} available="New company: it will be created"
+              taken="Existing company: you'll join your colleagues' account" />
           </label>
         )}
         <label className="field">
           <span className="label">Work email</span>
           <input type="email" autoComplete="email" required value={f.email} onChange={set("email")} />
+          <AvailabilityHint state={emailCheck} available="Email is available"
+            taken="Already registered. Sign in instead" />
         </label>
         <label className="field">
           <span className="label">Password</span>
@@ -67,7 +77,7 @@ export function RegisterPage() {
           <span className="hint">At least 8 characters</span>
         </label>
         {error && <ErrorBox message={error} />}
-        <button className="btn btn-primary btn-block" disabled={busy}>{busy ? "Creating…" : "Create account"}</button>
+        <button className="btn btn-primary btn-block" disabled={busy || emailTaken}>{busy ? "Creating…" : "Create account"}</button>
       </form>
       <p className="muted small center">Already registered? <Link to="/login">Sign in</Link></p>
     </AuthShell>

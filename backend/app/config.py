@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     run_closer: bool = True
     # Set to enable Redis pub/sub fan-out (multiple API replicas) and the Celery broker.
     redis_url: str | None = None
+    # How often the availability Bloom filters are rebuilt from the database (seconds).
+    bloom_rebuild_seconds: float = 300
 
     # Directory of the built frontend (frontend/dist). When set, the API also serves the SPA: one URL, one container.
     frontend_dist: str | None = None

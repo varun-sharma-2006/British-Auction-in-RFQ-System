@@ -308,3 +308,9 @@ textarea { resize: vertical; }
 @media (max-width: 720px) {
   .user-text { display: none; }
 }
+
+/* ---------- availability hints ---------- */
+.avail { font-size: 12px; font-weight: 600; }
+.avail.ok { color: var(--good); }
+.avail.taken { color: var(--warn); }
+.avail-how { font-weight: 400; color: var(--text-3); }

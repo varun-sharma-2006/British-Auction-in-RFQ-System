@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app import clock  # noqa: E402
 from app.db import Base, engine  # noqa: E402
 from app.main import app  # noqa: E402
+from app.services import availability  # noqa: E402
 
 T0 = datetime(2030, 1, 15, 12, 0, tzinfo=UTC)  # 12:00 UTC; tests advance from here
 
@@ -42,6 +43,7 @@ def frozen(monkeypatch) -> FakeClock:
 def fresh_db():
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
+    availability.reset_filters()   # each test starts with empty Bloom filters, like a fresh deployment
     yield
 
 

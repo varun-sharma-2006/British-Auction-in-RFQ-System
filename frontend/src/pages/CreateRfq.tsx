@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { Card, ErrorBox } from "../components/common";
 import { api, type TriggerType } from "../lib/api";
 import { TRIGGER_INFO, localInputToIso, timeOnly, toLocalInput } from "../lib/format";
+import { useAvailability } from "../lib/useAvailability";
+import { AvailabilityHint } from "../components/AvailabilityHint";
 
 const roundUp = (d: Date, minutes = 5) => {
   const ms = minutes * 60000;
@@ -66,7 +68,13 @@ export function CreateRfqPage() {
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
-  const errors = useMemo(() => validate(f), [f]);
+  const refCheck = useAvailability("reference-id", f.reference_id, !!f.reference_id.trim() && !/[^A-Za-z0-9._\-/]/.test(f.reference_id));
+  const refTaken = refCheck.status === "done" && !refCheck.result.available;
+  const errors = useMemo(() => {
+    const e = validate(f);
+    if (refTaken) e.reference_id = "This reference ID is already used by another RFQ";
+    return e;
+  }, [f, refTaken]);
   const show = (k: keyof Form) => (touched ? errors[k] : undefined);
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((prev) => ({ ...prev, [k]: v }));
 
@@ -138,6 +146,7 @@ export function CreateRfqPage() {
               </Field>
               <Field label="Reference ID" hint="Leave blank to auto-generate (RFQ-YYYY-NNNNN)" error={show("reference_id")}>
                 <input value={f.reference_id} onChange={(e) => set("reference_id", e.target.value)} placeholder="Auto" />
+                {!refTaken && <AvailabilityHint state={refCheck} available="Reference ID is available" taken="" />}
               </Field>
               <Field label="Origin">
                 <input value={f.origin} onChange={(e) => set("origin", e.target.value)} placeholder="Pickup location" />

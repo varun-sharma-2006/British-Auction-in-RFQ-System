@@ -19,6 +19,7 @@ from app.schemas import (
     RfqDetail,
     RfqSummary,
 )
+from app.services import availability
 from app.services.auction_engine import Standing, compute_status, rank
 
 TRIGGER_LABELS = {
@@ -80,6 +81,7 @@ def create_rfq(db: Session, data: RfqCreate, created_by_id: int | None = None) -
     db.add(AuctionEvent(rfq_id=rfq.id, event_type=EventType.RFQ_CREATED, occurred_at=now,
                         message=f"RFQ {rfq.reference_id} created. {config}"))
     db.commit()
+    availability.note_added("reference_id", rfq.reference_id)
     return rfq
 
 

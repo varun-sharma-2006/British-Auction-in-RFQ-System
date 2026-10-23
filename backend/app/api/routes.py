@@ -22,7 +22,7 @@ from app.schemas import (
     SupplierCreate,
     SupplierOut,
 )
-from app.services import bidding, rfq_service
+from app.services import availability, bidding, rfq_service
 
 router = APIRouter(prefix="/api")
 # Everything except /health needs a signed-in user; writes are additionally role-checked.
@@ -50,6 +50,7 @@ def create_supplier(body: SupplierCreate, db: Session = Depends(get_db), _: User
     except IntegrityError:
         db.rollback()
         raise DomainError(409, f"A supplier named '{body.name}' already exists") from None
+    availability.note_added("company", supplier.name)
     return supplier
 
 
