@@ -1,6 +1,8 @@
 import asyncio
 import contextlib
 import logging
+import os
+import socket
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -61,8 +63,20 @@ app = FastAPI(
                 "forced close and a full activity log.",
     lifespan=lifespan,
 )
+INSTANCE = settings.instance_name or f"{socket.gethostname()}:{os.getpid()}"
+
+
+@app.middleware("http")
+async def served_by(request: Request, call_next):
+    """Tag every response with the replica that produced it (visible through the load balancer)."""
+    response = await call_next(request)
+    response.headers["X-Served-By"] = INSTANCE
+    return response
+
+
 app.add_middleware(
     CORSMiddleware, allow_origins=settings.cors_origin_list, allow_methods=["*"], allow_headers=["*"],
+    expose_headers=["X-Served-By"],
 )
 
 

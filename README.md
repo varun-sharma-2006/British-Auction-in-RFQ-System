@@ -6,14 +6,14 @@ An RFQ (Request for Quotation) platform for freight with **British-auction** bid
 prices, the auction **extends automatically** when activity happens near the end, and it **never runs past the forced
 close time**. Ranks, prices and the reason for every extension are visible live.
 
-**Stack:** FastAPI · PostgreSQL · SQLAlchemy 2 · Alembic · Celery + Redis · React 18 + TypeScript · WebSockets ·
-JWT auth · pytest · Vitest · Playwright · GitHub Actions · Docker
+**Stack:** FastAPI · PostgreSQL · SQLAlchemy 2 · Alembic · Celery + Redis · nginx load balancer · React 18 +
+TypeScript · WebSockets · JWT auth · Bloom filters · pytest · Vitest · Playwright · GitHub Actions · Docker
 
 ![Demo: a supplier takes L1 inside the trigger window, the auction extends with a logged reason, and the buyer's screen updates live](docs/demo.gif)
 
 | Deliverable | Where |
 |---|---|
-| HLD with architecture diagram | [`docs/HLD.md`](docs/HLD.md): architecture, bid sequence, lifecycle, security, deployment modes, testing strategy |
+| HLD with architecture diagram | [`docs/HLD.md`](docs/HLD.md): architecture, load balancing, bid sequence, lifecycle, Bloom-filter availability checks, security, deployment, testing |
 | Schema design | [`docs/SCHEMA.md`](docs/SCHEMA.md) (ER diagram + constraints) and [`docs/schema.sql`](docs/schema.sql) (exact PostgreSQL DDL) |
 | Backend code | [`backend/`](backend) |
 | Frontend code | [`frontend/`](frontend) |
@@ -31,11 +31,24 @@ JWT auth · pytest · Vitest · Playwright · GitHub Actions · Docker
 | **§6.2 Extension duration Y** | Added to the **current close time** (6:00 → 6:05, as in the brief). |
 | **§6.3a / b / c triggers** | `BID_RECEIVED` · `ANY_RANK_CHANGE` · `L1_CHANGE`, each tested with the brief's own 5:55 / 5:58 / 5:59 PM examples |
 | **§7 Validation** | Pydantic (clear messages) + client-side checks + DB `CHECK` constraints |
-| **§8 Listing page:** name/ID, current lowest bid, current close, forced close, status (Active / Closed / Force Closed) | `/` (plus *Scheduled*, live countdowns, extension count, status filters) |
+| **§8 Listing page:** name/ID, current lowest bid, current close, forced close, status (Active / Closed / Force Closed) | `/auctions` (plus *Scheduled*, live countdowns, extension count, status filters) |
 | **§8 Details page:** bids sorted by price, L1/L2/L3, quote details, X & Y, activity log with bids, extensions and the reason for each | `/rfqs/:id` (plus visual timeline, revision history, a "will this bid extend the auction?" hint) |
 | **§4 Success metrics:** bids per RFQ; final prices for extended vs non-extended auctions | `GET /api/metrics`, shown on the listing page |
 
 ![Auction details: ranking, configuration and activity log with extension reasons](docs/screenshots/details.png)
+
+## Two interfaces: buyer and supplier
+
+Each role signs in to its own dashboard (both update live):
+
+| Buyer | Supplier (bidder) |
+|---|---|
+| **My RFQs**: status, current L1, savings achieved by competition, bids, countdown | **My auctions**: my rank, my quote vs L1, gap to L1, *Leading / Outbid / Won / Lost* |
+| Totals: live auctions, bids received, ₹ saved, average price drop, extensions | "You've been outbid" banner with a one-click *Lower quote* |
+| Recent activity across all my auctions | Open auctions to join, and activity in my auctions |
+| Create RFQs, manage suppliers | Submit and lower quotes (only as their own company) |
+
+![Supplier dashboard: outbid banner, positions and open auctions](docs/screenshots/supplier-dashboard.png)
 
 ## Engineering highlights
 
@@ -44,12 +57,20 @@ JWT auth · pytest · Vitest · Playwright · GitHub Actions · Docker
 * **Pure rules engine**, unit-tested on its own, plus a TypeScript mirror that tells suppliers *before* they submit
   whether their bid will extend the auction. Both are tested against the same scenarios.
 * **Real roles.** JWT auth: buyers create RFQs, suppliers bid, and a supplier can only bid as their own company.
-* **Celery + Redis.** Celery beat/worker close auctions; Redis pub/sub fans live updates out to every API replica.
+* **Load balanced.** In `docker-compose`, nginx spreads traffic over **3 API replicas** (`least_conn`, Docker DNS
+  re-resolution, WebSocket upgrade). Replicas are stateless (JWT auth, row locks in Postgres, updates via Redis), so no
+  sticky sessions are needed. A test runs two real API processes and shows a bid on replica A reaching a browser on
+  replica B. It fails without Redis.
+* **Celery + Redis.** Celery beat/worker close auctions; Redis pub/sub fans live updates out to every replica.
   Without Redis the same code runs as a single container.
+* **Bloom-filter availability checks.** Live "is this taken?" for sign-up email, supplier company and RFQ reference
+  ID. The filter answers "definitely free" with no query, "maybe" is confirmed in the database, and UNIQUE
+  constraints stay the final authority. Shared across replicas via Redis bitmaps.
 * **Server-authoritative time.** Bids are timestamped by the server, and countdowns correct for client clock skew.
 * **Audit trail.** Bids are append-only revisions; every extension logs `old → new` close time and a readable reason.
-* **Tested at every layer.** 61 backend tests (95% coverage), 26 frontend tests, and a Playwright end-to-end run.
-  CI covers all of it on PostgreSQL, plus lint and a migration up/down/drift check.
+* **Tested at every layer.** 76 backend tests (96% coverage), 26 frontend tests, and a Playwright browser test.
+  CI runs them on PostgreSQL + Redis, then boots the full `docker compose` stack and runs the browser test **through
+  the load balancer**, plus lint and a migration up/down/drift check.
 
 ---
 
@@ -59,13 +80,14 @@ Demo logins after seeding (password **`demo1234`**): `buyer@demo.com` · supplie
 `gati@demo.com`, `rivigo@demo.com`, `delhivery@demo.com`, `tci@demo.com`, `vrl@demo.com`.
 The login page has one-click buttons for these.
 
-### Option A: Docker, full topology (Postgres, Redis, API, Celery worker + beat, nginx)
+### Option A: Docker, full topology (nginx load balancer → 3 API replicas, Postgres, Redis, Celery worker + beat)
 
 ```bash
 docker compose up --build
-docker compose exec api python -m scripts.seed
+docker compose run --rm migrate python -m scripts.seed
 ```
-Open **http://localhost:8080** · API docs: http://localhost:8000/docs
+Open **http://localhost:8080**. Each response's `X-Served-By` header shows which replica answered.
+Scale with `docker compose up --scale api=5`.
 
 ### Option B: Single container (what the Render blueprint deploys)
 
@@ -75,9 +97,9 @@ docker run -p 8000:8000 -e DATABASE_URL=postgresql://user:pass@host:5432/db -e S
 ```
 API and UI on **http://localhost:8000**.
 
-**Hosting:** after every green CI run on `main`, `.github/workflows/image.yml` publishes this image to GitHub
-Container Registry; it runs on **Azure Container Apps** with **Azure Database for PostgreSQL**.
-`render.yaml` is also included for Render (**New → Blueprint**).
+**Hosting:** a free Render web service (Docker) with a free [Neon](https://neon.tech) PostgreSQL database; set
+`DATABASE_URL`, `JWT_SECRET` and `SEED_DEMO=true`. After every green CI run on `main`, `.github/workflows/image.yml`
+also publishes this image to GitHub Container Registry for any container host.
 
 ### Option C: Local development
 
@@ -109,6 +131,7 @@ suppliers and keeps undercutting L1. Optional Celery mode: set `REDIS_URL` and `
 ```bash
 cd backend && pytest                                        # SQLite by default
 TEST_DATABASE_URL=postgresql+psycopg://... pytest           # PostgreSQL, adds the concurrency tests
+TEST_REDIS_URL=redis://localhost:6379/0 TEST_DATABASE_URL=... pytest   # + two-replica tests
 ruff check .
 
 cd frontend && npm run lint && npm run typecheck && npm test
@@ -133,6 +156,8 @@ E2E_BASE_URL=http://localhost:5173 pytest e2e               # app running with s
 | `GET` | `/api/rfqs/{id}/activity` | signed in | Activity log |
 | `GET/POST` | `/api/suppliers` | signed in / buyer | Supplier companies |
 | `GET` | `/api/metrics` | signed in | Success metrics |
+| `GET` | `/api/dashboard/buyer` · `/api/dashboard/supplier` | buyer · supplier | Role dashboards |
+| `GET` | `/api/availability/email` · `/company` · `/reference-id` | anyone · anyone · buyer | Bloom-filter "is it taken?" checks |
 | `WS` | `/ws` | anyone | `{"type":"rfq_updated","rfq_id":N,"reason":…}` (ids only, no data) |
 
 Interactive docs at **`/docs`**.
@@ -169,18 +194,22 @@ backend/
       bidding.py          transactional bid submission (row lock)
       rfq_service.py      create / list / details / activity / metrics
       closer.py           start/close transitions (SKIP LOCKED)
+      dashboard.py        buyer and supplier dashboards
+      bloom.py            Bloom filter (in-memory or Redis bitmap)
+      availability.py     email / company / reference-ID checks built on it
     realtime.py           WebSocket fan-out (in-process or Redis pub/sub)
     worker.py             Celery app + beat schedule
   alembic/                migrations 0001 (schema), 0002 (users & roles)
   scripts/                seed.py (demo data through the real engine) · simulate_bidding.py
-  tests/                  engine · API · auth · concurrency (PG) · worker/realtime · SPA
+  tests/                  engine · API · auth · concurrency (PG) · multi-replica (PG+Redis) · Bloom · dashboards · worker · SPA
 frontend/src/
-  pages/                  AuctionList · AuctionDetail · CreateRfq · Login · Register · Suppliers
+  pages/                  Buyer/Supplier dashboards · AuctionList · AuctionDetail · CreateRfq · Login · Register · Suppliers
   components/             BidForm · AuctionTimeline · Layout · shared UI
   lib/                    api client · auth context · predict (extension hint) · hooks · formatting
 e2e/                      Playwright end-to-end test · demo recorder (screenshots + GIF)
 docs/                     HLD · schema · screenshots · demo.gif
 Dockerfile · render.yaml  single-container build + Render blueprint
-docker-compose.yml        full topology
-.github/workflows/ci.yml  lint, migrations, tests (PostgreSQL), frontend, e2e
+docker-compose.yml        full topology: nginx LB, 3 API replicas, Celery, Redis, Postgres
+frontend/nginx.conf       load balancer + static UI
+.github/workflows/        ci.yml (lint, migrations, tests, e2e, full stack through the LB) · image.yml (GHCR)
 ```

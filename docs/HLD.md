@@ -11,8 +11,10 @@ close time**. Everyone sees ranks, prices and the reason for every extension in 
 ```mermaid
 flowchart LR
     subgraph Client["Browser: React + TypeScript"]
-        UI[Listing · Details · Create RFQ · Bid form<br/>JWT in session, server-synced clock]
+        UI[Buyer & supplier dashboards · Listing · Details<br/>Create RFQ · Bid form · server-synced clock]
     end
+
+    LB[nginx load balancer<br/>least_conn · WebSocket upgrade<br/>serves the static UI]
 
     subgraph API["FastAPI (1..N replicas)"]
         AUTH[Auth<br/>JWT, buyer/supplier roles]
@@ -30,9 +32,10 @@ flowchart LR
     PG[(PostgreSQL)]
     RD[(Redis<br/>broker + pub/sub)]
 
-    UI -- "HTTPS JSON + Bearer token" --> AUTH --> R --> SVC --> ENG
+    UI -- "HTTPS JSON + Bearer token" --> LB --> AUTH --> R --> SVC --> ENG
+    UI <-. "WebSocket" .-> LB
     SVC -- "SELECT … FOR UPDATE" --> PG
-    UI <-. "rfq_updated" .- WS
+    LB <-. "rfq_updated" .- WS
     SVC -- "PUBLISH rfq_updates" --> RD
     BEAT -- enqueue --> RD --> WRK
     WRK -- "FOR UPDATE SKIP LOCKED" --> PG
@@ -42,12 +45,14 @@ flowchart LR
 
 | Component | Responsibility |
 |---|---|
+| **nginx load balancer** | Spreads `/api` and `/ws` over the API replicas (`least_conn`), re-resolves Docker DNS so scaled or restarted replicas join automatically, upgrades WebSockets, retries idempotent requests on another replica, and serves the built UI. |
 | **React SPA** | Listing, details, RFQ creation, bidding. Countdowns use a **server-synchronised clock** (offset learned from `server_time`), so a wrong laptop clock can't mislead a supplier. Before a supplier submits, it shows whether the bid will extend the auction. |
 | **Auth** | Email + password, JWT bearer tokens. **Buyers** create RFQs; **suppliers** bid. The bidding supplier is always taken from the token. |
 | **Auction engine** (`services/auction_engine.py`) | Pure functions, no I/O: ranking, trigger window, the three triggers, capping, status. Unit-tested in isolation. The UI hint (`frontend/src/lib/predict.ts`) mirrors it and is tested against the same scenarios. |
 | **Bidding service** | The only write path that moves the close time. One transaction per bid, with the RFQ row locked. |
 | **Closer** (Celery beat + worker) | Moves auctions `SCHEDULED → ACTIVE → CLOSED / FORCE_CLOSED`, logs the closing event, notifies clients. |
-| **Redis** | Celery broker, and the pub/sub channel that fans live updates out to every API replica. |
+| **Redis** | Celery broker; the pub/sub channel that fans live updates out to every API replica; the shared Bloom-filter bitmaps. |
+| **Availability service** | "Is this email / company / reference ID taken?" Answered by a Bloom filter when the answer is "definitely not", confirmed in Postgres otherwise. |
 | **WebSocket hub** | Pushes thin `{"type":"rfq_updated","rfq_id":N}` messages; clients re-fetch over REST (one source of truth). Clients also poll every 10–15 s as a safety net. |
 | **PostgreSQL** | System of record; business invariants are enforced again with `CHECK` constraints. |
 
@@ -55,9 +60,10 @@ flowchart LR
 
 | | **Simple** (one container) | **Scaled** (`docker-compose.yml`) |
 |---|---|---|
-| Processes | 1 × FastAPI (also serves the built SPA) | N × FastAPI, Celery worker(s), Celery beat, nginx |
+| Processes | 1 × FastAPI (also serves the built SPA) | nginx load balancer → 3 × FastAPI (scalable), Celery worker(s), Celery beat |
 | Closer | in-process asyncio task (`RUN_CLOSER=true`) | Celery beat → `auction.close_due` on workers |
 | Live updates | in-memory broadcast | Redis pub/sub → every replica's sockets |
+| Bloom filters | in-process bytes | Redis bitmaps shared by all replicas |
 | Needs | PostgreSQL | PostgreSQL + Redis |
 | Used by | Render blueprint (`render.yaml`), CI e2e job | `docker compose up` |
 
@@ -145,7 +151,58 @@ stateDiagram-v2
 * **Force Closed** means bidding ran into the hard ceiling: extensions pushed the close time all the way to the
   forced close.
 
-## 6. Security
+## 6. Load balancing
+
+```mermaid
+flowchart LR
+    B1[Buyer browser] & B2[Supplier A browser] & B3[Supplier B browser] --> N[nginx<br/>least_conn]
+    N --> A1[API replica 1] & A2[API replica 2] & A3[API replica 3]
+    A1 & A2 & A3 --> PG[(PostgreSQL<br/>row locks)]
+    A1 & A2 & A3 <--> RD[(Redis<br/>pub/sub · Bloom bits)]
+```
+
+**Why any replica can serve any request (no sticky sessions):**
+
+| State | Where it lives | Consequence |
+|---|---|---|
+| Who you are | JWT in each request | Any replica verifies it with the shared secret |
+| Auction correctness | PostgreSQL row lock per RFQ | Two bids on the same auction serialise even when they hit different replicas |
+| Live updates | Redis pub/sub | A bid on replica 1 reaches a WebSocket held by replica 3 |
+| Auction closing | `FOR UPDATE SKIP LOCKED` | Any number of closers or workers never process the same auction twice |
+| Availability filters | Redis bitmaps | All replicas see an email the moment it registers anywhere |
+| Migrations | One-shot `migrate` service | Replicas never race each other on schema changes |
+
+**Proof:** `tests/test_multi_instance.py` starts two real API processes on PostgreSQL + Redis. A bid on replica A is
+delivered to a WebSocket on replica B, a JWT from A is accepted by B, and B's Bloom filter sees a sign-up made on A.
+Both tests fail if Redis is removed. CI also boots the full `docker compose` stack, checks that responses come from
+multiple replicas (`X-Served-By`), and runs the Playwright browser test through nginx.
+
+## 7. Availability checks with a Bloom filter
+
+Sign-up and Create RFQ show a live "is this taken?" hint for **email**, **company name** and **RFQ reference ID**.
+
+```mermaid
+flowchart LR
+    Q[value] --> BF{Bloom filter:<br/>all k bits set?}
+    BF -- "no → definitely free" --> OK[available<br/>no DB query]
+    BF -- "yes → maybe taken" --> DB{indexed lookup<br/>in Postgres}
+    DB -- found --> T[taken]
+    DB -- "not found (false positive)" --> OK2[available]
+```
+
+* **Sizing:** 100k items at 1% false positives gives m ≈ 958k bits (~117 KB), with k = 7 hash positions from one
+  BLAKE2b digest (Kirsch–Mitzenmacher double hashing).
+* **Correctness:** Bloom filters have no false negatives, so "free" answers are safe *as long as the filter contains
+  every value*. Every API insert adds its value immediately, and the filter is rebuilt from the database at startup,
+  every 5 minutes and after seeding (this also drops deleted values). The UNIQUE constraints remain the final
+  authority on insert, so a stale filter can never create a duplicate.
+* **Shared state:** with Redis the bits are one Redis string (`SETBIT`/`GETBIT`, rebuilt under a temp key and
+  `RENAME`d atomically), so every replica answers the same. If Redis is unreachable, checks fall back to the database.
+* **Honest trade-off:** at this scale an indexed lookup is already fast. The filter's value is offloading the
+  database on a high-traffic, keystroke-driven endpoint, and it scales to millions of values in a few MB.
+  `GET /api/availability/stats` shows how many checks the filter answered on its own.
+
+## 8. Security
 
 | Concern | Approach |
 |---|---|
@@ -153,12 +210,12 @@ stateDiagram-v2
 | Sessions | HS256 JWT, 12 h expiry, `JWT_SECRET` from the environment (Render generates one) |
 | Authorization | Route-level dependencies: `require_buyer` (create RFQ, add supplier), `require_supplier` (bid). Reads need any signed-in user. |
 | Bid impersonation | No `supplier_id` in the bid payload: it comes from the token. Covered by a test that sends a forged one. |
-| Account enumeration | Login returns the same error for unknown email and wrong password. |
+| Account enumeration | Login returns the same error for unknown email and wrong password. Sign-up (and its availability check) necessarily reveals whether an email is registered; production would rate-limit those endpoints. |
 | Input validation | Pydantic on every request, mirrored client-side, backed by DB `CHECK` constraints. |
 | Static files | SPA handler resolves paths and refuses anything outside the build directory. |
 | Money | `NUMERIC(14,2)` / `Decimal`, sent as strings: no float rounding in prices or rankings. |
 
-## 7. Key design decisions
+## 9. Key design decisions
 
 | Decision | Why |
 |---|---|
@@ -171,12 +228,12 @@ stateDiagram-v2
 | Thin WS messages + REST re-fetch | One source of truth, no state drift; a missed message is fixed by the next poll. |
 | British Auction optional per RFQ | Matches "create an RFQ with the British Auction option enabled", and gives a control group for the "extended vs non-extended" success metric. |
 
-## 8. Success metrics (assignment §4)
+## 10. Success metrics (assignment §4)
 
 `GET /api/metrics` (shown on the listing page) reports **bids per RFQ** and **price improvement** (how far the final
 L1 dropped below the best *opening* quote), each split by extended vs non-extended auctions.
 
-## 9. Testing strategy
+## 11. Testing strategy
 
 | Layer | What | Where |
 |---|---|---|
@@ -184,13 +241,17 @@ L1 dropped below the best *opening* quote), each split by extended vs non-extend
 | API | Validation, roles, ranking, every extension path on a frozen clock, listing, metrics, WebSocket | `backend/tests/test_api.py`, `test_auth.py` |
 | Concurrency | Simultaneous bids under real row locks (PostgreSQL) | `backend/tests/test_concurrency.py` |
 | Background | Celery task (eager), Redis fan-out (fakeredis), SPA serving | `test_worker_realtime.py`, `test_spa.py` |
+| Scale-out | Two real API processes on Postgres + Redis: cross-replica WebSocket delivery, shared JWT and Bloom filter | `test_multi_instance.py` |
+| Bloom filter | No false negatives, measured false-positive rate, Redis/memory layout parity, DB confirmation, fallback | `test_bloom.py` |
+| Dashboards | Buyer savings and activity; supplier Leading/Outbid/Won/Lost; role isolation | `test_dashboard.py` |
+| Full stack | `docker compose` with 3 replicas behind nginx; browser test through the load balancer | CI `stack` job |
 | UI logic | Extension prediction mirrors the engine; form validation | `frontend/src/**/*.test.ts(x)` |
 | End to end | Buyer creates → supplier bids → extension + reason → other supplier's screen updates live | `e2e/test_auction_flow.py` (Playwright) |
 
-CI (GitHub Actions) runs all of it against PostgreSQL, plus ruff/ESLint, a migration up/down/drift check, and a
-90% coverage gate (currently 95%).
+CI (GitHub Actions) runs all of it against PostgreSQL + Redis, plus ruff/ESLint, a migration up/down/drift check, and
+a 90% coverage gate (currently 96%).
 
-## 10. What's next at larger scale
+## 12. What's next at larger scale
 
 | Concern | Next step |
 |---|---|

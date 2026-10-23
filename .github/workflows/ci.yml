@@ -6,7 +6,7 @@ on:
 
 jobs:
   backend:
-    name: Backend (lint, migrations, tests on PostgreSQL + Redis)
+    name: Backend (lint, migrations, tests on PostgreSQL + Redis incl. two-replica tests)
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -17,12 +17,18 @@ jobs:
         ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
     defaults:
       run:
         working-directory: backend
     env:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/british_auction
       TEST_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/british_auction_test
+      TEST_REDIS_URL: redis://localhost:6379/0   # enables the two-replica (load-balancing) tests
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -112,3 +118,33 @@ jobs:
       - name: Server log
         if: always()
         run: cat uvicorn.log
+
+  stack:
+    name: Full stack (docker compose, 3 API replicas behind the nginx load balancer)
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start db, redis, migrate, api x3, worker, beat, web
+        run: docker compose up -d --build
+      - name: Wait for the load balancer
+        run: |
+          for i in $(seq 1 90); do curl -sf localhost:8080/api/health && exit 0; sleep 2; done
+          docker compose ps; docker compose logs; exit 1
+      - name: Load demo data
+        run: docker compose run --rm migrate python -m scripts.seed
+      - name: Requests are spread across replicas
+        run: |
+          for i in $(seq 1 30); do curl -s -D - -o /dev/null localhost:8080/api/health | grep -i '^x-served-by'; done             | sort | uniq -c | tee served.txt
+          test "$(wc -l < served.txt)" -ge 2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Browser test through the load balancer
+        run: |
+          pip install -r e2e/requirements.txt
+          python -m playwright install --with-deps chromium
+          E2E_BASE_URL=http://localhost:8080 pytest e2e -v
+      - name: Logs
+        if: always()
+        run: docker compose ps && docker compose logs --tail=80

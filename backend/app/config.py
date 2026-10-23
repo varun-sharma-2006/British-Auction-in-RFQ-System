@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     run_closer: bool = True
     # Set to enable Redis pub/sub fan-out (multiple API replicas) and the Celery broker.
     redis_url: str | None = None
+    # Name this API instance reports in the X-Served-By header (defaults to hostname:pid). Behind the load
+    # balancer it shows which replica answered a request.
+    instance_name: str | None = None
     # How often the availability Bloom filters are rebuilt from the database (seconds).
     bloom_rebuild_seconds: float = 300
 

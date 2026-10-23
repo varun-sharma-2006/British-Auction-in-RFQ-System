@@ -23,6 +23,7 @@ from app.db import SessionLocal
 from app.models import AuctionEvent, Bid, Rfq, Supplier, TriggerType, User, UserRole
 from app.schemas import BidCreate, RfqCreate
 from app.security import hash_password
+from app.services import availability
 from app.services.bidding import submit_bid
 from app.services.closer import close_due_auctions
 from app.services.rfq_service import create_rfq
@@ -169,6 +170,9 @@ def run(reset: bool, if_empty: bool = False) -> None:
 
         sim.t = datetime.now(UTC)
         close_due_auctions()
+        with SessionLocal() as db:
+            # Refresh the availability Bloom filters (shared via Redis when configured).
+            availability.rebuild_all(db)
     finally:
         clock.utcnow = real_utcnow
     print("Seeded 6 auctions (closed, force-closed, 3 active, 1 scheduled).")

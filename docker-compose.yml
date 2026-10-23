@@ -1,21 +1,20 @@
-# Full "scaled" topology: PostgreSQL + Redis + API + Celery worker + Celery beat + web.
+# Full "scaled" topology:
+#   nginx (static UI + load balancer)  ->  3 x FastAPI replicas  ->  PostgreSQL
+#                                              |  Redis (pub/sub fan-out, Bloom filters, Celery broker)
+#                                     Celery beat + worker (auction closer)
+#
 #   docker compose up --build
-#   docker compose exec api python -m scripts.seed      # demo data + demo logins
-# Web UI: http://localhost:8080   API docs: http://localhost:8000/docs
+#   docker compose run --rm migrate python -m scripts.seed      # demo data + demo logins
+# Web UI: http://localhost:8080      Scale API replicas: docker compose up --scale api=5
 
 x-backend: &backend
   build: ./backend
-  environment:
+  environment: &backend-env
     DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/british_auction
     REDIS_URL: redis://redis:6379/0
     RUN_CLOSER: "false"            # Celery beat + worker run the closer instead of the API
     JWT_SECRET: change-me-in-production-use-a-long-random-string
-    CORS_ORIGINS: http://localhost:8080,http://localhost:5173
-  depends_on:
-    db:
-      condition: service_healthy
-    redis:
-      condition: service_healthy
+    CORS_ORIGINS: http://localhost:8080
 
 services:
   db:
@@ -24,7 +23,6 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: british_auction
-    ports: ["5432:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d british_auction"]
@@ -38,24 +36,53 @@ services:
       interval: 3s
       retries: 20
 
+  # Runs once, before any API replica starts, so replicas never race each other on migrations.
+  migrate:
+    <<: *backend
+    command: alembic upgrade head
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
   api:
     <<: *backend
-    ports: ["8000:8000"]
-    # Applies migrations, then serves the API (several replicas are fine: Redis fans out live updates).
-    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=*
+    deploy:
+      replicas: 3                  # stateless: JWT auth, row locks in Postgres, live updates via Redis
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 5s
+      retries: 20
 
   worker:
     <<: *backend
     command: celery -A app.worker worker --loglevel=info --concurrency=2
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
 
   beat:
     <<: *backend
     command: celery -A app.worker beat --loglevel=info
+    depends_on:
+      redis:
+        condition: service_healthy
 
+  # nginx: serves the built React app and load-balances /api and /ws across the API replicas.
   web:
     build: ./frontend
     ports: ["8080:80"]
-    depends_on: [api]
+    depends_on:
+      api:
+        condition: service_healthy
 
 volumes:
   pgdata:

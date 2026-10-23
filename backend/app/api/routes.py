@@ -33,7 +33,8 @@ authed = APIRouter(prefix="/api", dependencies=[Depends(current_user)])
 
 @router.get("/health", tags=["meta"])
 def health():
-    return {"status": "ok", "server_time": clock.utcnow()}
+    from app.main import INSTANCE  # which replica answered: useful behind the load balancer
+    return {"status": "ok", "server_time": clock.utcnow(), "instance": INSTANCE}
 
 
 # ---------- suppliers ----------
