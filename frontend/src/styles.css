@@ -423,6 +423,7 @@ textarea { resize: vertical; }
 .bar-label .mono { color: var(--text-3); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bar-track { height: 12px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
 .bar-fill { display: block; height: 100%; border-radius: 999px; background: var(--grad); transition: width 0.5s ease; }
+.bars-more { margin: 12px 0 0; }
 .bar-count { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* ---------- availability hints ---------- */

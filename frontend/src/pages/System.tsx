@@ -25,6 +25,8 @@ const MODE: Record<SystemInfo["mode"], { title: string; expect: string; nodes: s
   },
 };
 
+const TOP = 10;   // busiest instances shown as bars; the rest are summarised
+
 /** Short, stable label for an instance id like "4f1c2a9e0b3d:8" or "169.254.40.141:8". */
 function label(i: number) {
   return `#${i + 1}`;
@@ -109,7 +111,7 @@ export function SystemPage() {
               {result.failed > 0 && <span className="warn-text"> · {result.failed} failed</span>}
             </div>
             <ol className="bars">
-              {result.instances.map((x, i) => (
+              {result.instances.slice(0, TOP).map((x, i) => (
                 <li key={x.id}>
                   <span className="bar-label">
                     <strong>{label(i)}</strong>
@@ -120,6 +122,14 @@ export function SystemPage() {
                 </li>
               ))}
             </ol>
+            {result.instances.length > TOP && (() => {
+              const rest = result.instances.slice(TOP);
+              return (
+                <p className="muted small bars-more">
+                  + {rest.length} more instances answered the other {rest.reduce((n, x) => n + x.count, 0)} requests
+                </p>
+              );
+            })()}
           </>
         )}
       </Card>
