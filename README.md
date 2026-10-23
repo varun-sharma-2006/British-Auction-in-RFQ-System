@@ -1,6 +1,6 @@
 # British Auction in an RFQ System
 
-[![CI](https://github.com/varun-sharma-2006/british-auction-rfq/actions/workflows/ci.yml/badge.svg)](https://github.com/varun-sharma-2006/british-auction-rfq/actions/workflows/ci.yml)
+[![CI](https://github.com/varun-sharma-2006/British-Auction-in-RFQ-System/actions/workflows/ci.yml/badge.svg)](https://github.com/varun-sharma-2006/British-Auction-in-RFQ-System/actions/workflows/ci.yml)
 
 An RFQ (Request for Quotation) platform for freight with **British-auction** bidding: suppliers openly lower their
 prices, the auction **extends automatically** when activity happens near the end, and it **never runs past the forced
