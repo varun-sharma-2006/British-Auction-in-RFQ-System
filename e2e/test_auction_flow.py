@@ -19,6 +19,10 @@ from playwright.sync_api import Browser, Page, expect, sync_playwright
 BASE = os.environ.get("E2E_BASE_URL", "http://localhost:5173")
 SHOTS = os.environ.get("E2E_SCREENSHOT_DIR")  # set to capture a frame per step (used to build the demo GIF)
 
+# This test creates RFQs and bids. Never let it litter a deployed demo by accident.
+if not re.match(r"https?://(localhost|127\.0\.0\.1)(:\d+)?(/|$)", BASE) and os.environ.get("E2E_ALLOW_REMOTE") != "1":
+    pytest.skip(f"refusing to write test data to {BASE}; set E2E_ALLOW_REMOTE=1 to override", allow_module_level=True)
+
 
 @pytest.fixture(scope="module")
 def browser():
