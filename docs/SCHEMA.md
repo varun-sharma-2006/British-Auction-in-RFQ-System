@@ -1,10 +1,13 @@
 # Database Schema
 
-PostgreSQL. Managed with Alembic (`backend/alembic/versions/0001_initial_schema.py`).
+PostgreSQL. Managed with Alembic (`backend/alembic/versions/`: `0001_initial_schema`, `0002_users_and_roles`).
+CI applies every migration, checks the models have no drift (`alembic check`), and verifies they roll back.
 The exact DDL generated from the migration is in [`schema.sql`](schema.sql).
 
 ```mermaid
 erDiagram
+    USERS }o--o| SUPPLIERS : "works for"
+    USERS |o--o{ RFQS : "creates (buyer)"
     RFQS ||--o{ BIDS : receives
     SUPPLIERS ||--o{ BIDS : submits
     RFQS ||--o{ AUCTION_EVENTS : logs
@@ -24,6 +27,7 @@ erDiagram
         timestamptz bid_close_at "original, immutable"
         timestamptz current_close_at "moves with extensions"
         timestamptz forced_close_at "hard ceiling"
+        int created_by_id FK "buyer"
         bool is_british_auction
         int trigger_window_minutes "X"
         int extension_minutes "Y"
@@ -33,6 +37,16 @@ erDiagram
         timestamptz closed_at
         timestamptz created_at
         timestamptz updated_at
+    }
+
+    USERS {
+        int id PK
+        varchar email UK
+        varchar full_name
+        varchar password_hash "pbkdf2_sha256, salted"
+        varchar role "BUYER, SUPPLIER"
+        int supplier_id FK "required for SUPPLIER"
+        timestamptz created_at
     }
 
     SUPPLIERS {
@@ -96,8 +110,14 @@ One row per RFQ / auction.
 Index `ix_rfqs_status_close (status, current_close_at)` serves the background closer's
 "active auctions whose close time has passed" scan and the status filter on the listing.
 
+### `users`
+People who sign in. `role` is `BUYER` or `SUPPLIER`; a supplier user belongs to exactly one supplier company
+(`ck_user_supplier_has_company`), and colleagues from the same carrier share it, and so share one position in
+the ranking. Passwords are stored as salted PBKDF2-SHA256 hashes. `UNIQUE(email)` (emails are lower-cased).
+
 ### `suppliers`
-The carriers who bid. `UNIQUE(name)`.
+The carrier companies that bid. `UNIQUE(name)`. A bid's `supplier_id` always comes from the signed-in user's
+company, never from the request body, so a supplier can't bid as someone else.
 
 ### `bids`
 **Append-only.** A supplier lowering their price inserts a new row (`revision + 1`). The previous rows stay as the audit

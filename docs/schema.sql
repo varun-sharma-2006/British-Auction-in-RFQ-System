@@ -99,5 +99,30 @@ CREATE INDEX ix_events_rfq_id ON auction_events (rfq_id, id);
 
 INSERT INTO alembic_version (version_num) VALUES ('0001') RETURNING alembic_version.version_num;
 
+-- Running upgrade 0001 -> 0002
+
+CREATE TABLE users (
+    id SERIAL NOT NULL, 
+    email VARCHAR(254) NOT NULL, 
+    full_name VARCHAR(120) NOT NULL, 
+    password_hash VARCHAR(255) NOT NULL, 
+    role VARCHAR(32) NOT NULL, 
+    supplier_id INTEGER, 
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+    PRIMARY KEY (id), 
+    CONSTRAINT ck_user_supplier_has_company CHECK (role <> 'SUPPLIER' OR supplier_id IS NOT NULL), 
+    FOREIGN KEY(supplier_id) REFERENCES suppliers (id), 
+    UNIQUE (email), 
+    CONSTRAINT user_role CHECK (role IN ('BUYER', 'SUPPLIER'))
+);
+
+CREATE INDEX ix_users_supplier_id ON users (supplier_id);
+
+ALTER TABLE rfqs ADD COLUMN created_by_id INTEGER;
+
+ALTER TABLE rfqs ADD CONSTRAINT fk_rfqs_created_by_id_users FOREIGN KEY(created_by_id) REFERENCES users (id);
+
+UPDATE alembic_version SET version_num='0002' WHERE alembic_version.version_num = '0001';
+
 COMMIT;
 
