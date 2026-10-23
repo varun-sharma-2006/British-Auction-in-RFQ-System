@@ -10,7 +10,7 @@ const roundUp = (d: Date, minutes = 5) => {
 };
 const addMin = (d: Date, m: number) => new Date(d.getTime() + m * 60000);
 
-function defaults() {
+export function defaults() {
   const start = roundUp(new Date());
   const close = addMin(start, 60);
   return {
@@ -31,10 +31,10 @@ function defaults() {
   };
 }
 
-type Form = ReturnType<typeof defaults>;
+export type Form = ReturnType<typeof defaults>;
 
 /** Same rules the API enforces (assignment §7) so users get instant feedback. */
-function validate(f: Form): Partial<Record<keyof Form, string>> {
+export function validate(f: Form, nowMs = Date.now()): Partial<Record<keyof Form, string>> {
   const e: Partial<Record<keyof Form, string>> = {};
   if (f.name.trim().length < 3) e.name = "Give the RFQ a name (at least 3 characters)";
   if (f.reference_id && !/^[A-Za-z0-9._\-/]+$/.test(f.reference_id)) e.reference_id = "Letters, digits and . _ - / only";
@@ -43,7 +43,7 @@ function validate(f: Form): Partial<Record<keyof Form, string>> {
   const forced = new Date(f.forced_close_at).getTime();
   if (!f.bid_start_at) e.bid_start_at = "Required";
   if (!f.bid_close_at) e.bid_close_at = "Required";
-  else if (close <= Date.now()) e.bid_close_at = "Bid close time must be in the future";
+  else if (close <= nowMs) e.bid_close_at = "Bid close time must be in the future";
   else if (close <= start) e.bid_close_at = "Must be later than the bid start time";
   if (!f.pickup_date) e.pickup_date = "Required";
   else if (f.bid_start_at && f.pickup_date < f.bid_start_at.slice(0, 10)) e.pickup_date = "Cannot be before the bid start date";

@@ -42,7 +42,8 @@ def create_access_token(user_id: int, role: str) -> str:
 def decode_access_token(token: str) -> dict:
     """Raises jwt.PyJWTError on a bad signature, a malformed token or an expired one."""
     # Expiry is checked against our own clock so tests (and the server) share one notion of "now".
-    payload = jwt.decode(token, get_settings().jwt_secret, algorithms=["HS256"], options={"verify_exp": False, "verify_iat": False})
+    payload = jwt.decode(token, get_settings().jwt_secret, algorithms=["HS256"],
+                         options={"verify_exp": False, "verify_iat": False})
     if payload["exp"] <= clock.utcnow().timestamp():
         raise jwt.ExpiredSignatureError("Token expired")
     return payload

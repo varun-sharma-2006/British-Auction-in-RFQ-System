@@ -13,7 +13,7 @@ Demo logins (password for all: demo1234):
     tci@demo.com, rivigo@demo.com, vrl@demo.com      suppliers
 """
 import argparse
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import delete, select
@@ -22,10 +22,10 @@ from app import clock
 from app.db import SessionLocal
 from app.models import AuctionEvent, Bid, Rfq, Supplier, TriggerType, User, UserRole
 from app.schemas import BidCreate, RfqCreate
+from app.security import hash_password
 from app.services.bidding import submit_bid
 from app.services.closer import close_due_auctions
 from app.services.rfq_service import create_rfq
-from app.security import hash_password
 
 DEMO_PASSWORD = "demo1234"
 
@@ -58,7 +58,7 @@ def _ensure_user(db, email, full_name, role, supplier_id):
 
 
 def run(reset: bool) -> None:
-    real_now = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+    real_now = datetime.now(UTC).replace(second=0, microsecond=0)
     sim = SimClock(real_now)
     real_utcnow = clock.utcnow
     clock.utcnow = sim
@@ -152,7 +152,8 @@ def run(reset: bool) -> None:
 
             # 5) Scheduled: opens in 2 hours.
             s = m(real_now, 120)
-            auction(real_now, name="Ludhiana -> Mundra | Export FCL 40ft", origin="Ludhiana ICD", destination="Mundra Port",
+            auction(real_now, name="Ludhiana -> Mundra | Export FCL 40ft", origin="Ludhiana ICD",
+                    destination="Mundra Port",
                     start=s, close=m(s, 120), forced=m(s, 180), trigger=TriggerType.L1_CHANGE, x=15, y=10,
                     desc="Export textiles, vessel cut-off 3 days after pickup.")
 
@@ -163,7 +164,7 @@ def run(reset: bool) -> None:
             place(r, m(real_now, -15), "VRL", 21000, 900, 800, "VRL Part Load", 3)
             place(r, m(real_now, -5), "Gati", 22500, 700, 700, "Gati PTL", 2)
 
-        sim.t = datetime.now(timezone.utc)
+        sim.t = datetime.now(UTC)
         close_due_auctions()
     finally:
         clock.utcnow = real_utcnow

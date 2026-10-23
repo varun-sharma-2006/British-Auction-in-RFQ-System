@@ -19,9 +19,9 @@ def current_user(
     try:
         payload = decode_access_token(creds.credentials)
     except jwt.ExpiredSignatureError:
-        raise DomainError(401, "Session expired, please sign in again")
+        raise DomainError(401, "Session expired, please sign in again") from None
     except jwt.PyJWTError:
-        raise DomainError(401, "Invalid access token")
+        raise DomainError(401, "Invalid access token") from None
     user = db.get(User, int(payload["sub"]))
     if user is None:
         raise DomainError(401, "Account no longer exists")

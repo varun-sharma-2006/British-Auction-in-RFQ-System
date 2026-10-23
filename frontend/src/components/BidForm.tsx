@@ -3,6 +3,7 @@ import { api, type RfqDetail } from "../lib/api";
 import { money, toLocalInput } from "../lib/format";
 import { useAuth } from "../lib/auth";
 import { useNow } from "../lib/hooks";
+import { predictExtension } from "../lib/predict";
 import { Card, ErrorBox } from "./common";
 
 const blank = () => ({
@@ -39,28 +40,21 @@ export function BidForm({ rfq, onPlaced }: { rfq: RfqDetail; onPlaced: () => voi
     .reduce((a, b) => a + b, 0);
 
   const isOpen = rfq.status === "ACTIVE";
-  const cfg = rfq.config;
 
-  /** Predict what this bid would do, using the same rules as the server, so suppliers understand the stakes. */
   const prediction = useMemo(() => {
-    if (!isOpen || !cfg.is_british_auction || !total || !supplierId) return null;
-    const close = new Date(rfq.current_close_at).getTime();
-    const inWindow = close - now <= (cfg.trigger_window_minutes ?? 0) * 60000;
-    if (!inWindow) return null;
-    const atForced = rfq.current_close_at >= rfq.forced_close_at;
-    const others = rfq.ranking.filter((q) => q.supplier_id !== supplierId);
-    const newRank = others.filter((q) => Number(q.total_amount) <= total).length + 1;
-    let fires = false;
-    if (cfg.trigger_type === "BID_RECEIVED") fires = true;
-    if (cfg.trigger_type === "L1_CHANGE") fires = newRank === 1 && l1?.supplier_id !== supplierId;
-    if (cfg.trigger_type === "ANY_RANK_CHANGE") {
-      const oldRank = mine?.rank;
-      fires = oldRank ? newRank !== oldRank : newRank <= others.length;
+    if (!supplierId) return null;
+    const p = predictExtension(rfq, supplierId, total, now);
+    switch (p.kind) {
+      case "no-trigger":
+        return { tone: "info", text: "You are inside the trigger window, but this bid would not trigger an extension." };
+      case "blocked":
+        return { tone: "warn", text: "This bid triggers an extension, but the auction is at its forced close time, so it cannot extend." };
+      case "extends":
+        return { tone: "warn", text: `Inside the trigger window: this bid will extend the auction by ${p.minutes} min.` };
+      default:
+        return null;
     }
-    if (!fires) return { tone: "info", text: "You are inside the trigger window, but this bid would not trigger an extension." };
-    if (atForced) return { tone: "warn", text: "This bid triggers an extension, but the auction is at its forced close time, so it cannot extend." };
-    return { tone: "warn", text: `Inside the trigger window: this bid will extend the auction by ${cfg.extension_minutes} min.` };
-  }, [isOpen, cfg, total, supplierId, rfq, now, l1, mine]);
+  }, [rfq, supplierId, total, now]);
 
   async function submit(e: FormEvent) {
     e.preventDefault();

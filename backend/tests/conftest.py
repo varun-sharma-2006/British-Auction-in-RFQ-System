@@ -1,6 +1,6 @@
 import os
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 # Must be set before the app (and its engine) is imported.
 # TEST_DATABASE_URL=postgresql+psycopg://... runs the suite against PostgreSQL (CI does this);
@@ -17,7 +17,7 @@ from app import clock  # noqa: E402
 from app.db import Base, engine  # noqa: E402
 from app.main import app  # noqa: E402
 
-T0 = datetime(2030, 1, 15, 12, 0, tzinfo=timezone.utc)  # 12:00 UTC; tests advance from here
+T0 = datetime(2030, 1, 15, 12, 0, tzinfo=UTC)  # 12:00 UTC; tests advance from here
 
 
 class FakeClock:
@@ -49,8 +49,10 @@ SUPPLIER_HEADERS: dict[int, dict] = {}   # supplier_id -> Authorization header o
 
 
 def register(client, email, role="BUYER", company=None, password="secret-pass-1") -> dict:
-    res = client.post("/api/auth/register", json={"email": email, "password": password, "full_name": email.split("@")[0] + " User",
-                                                  "role": role, "company_name": company})
+    res = client.post("/api/auth/register", json={
+        "email": email, "password": password, "full_name": email.split("@")[0] + " User",
+        "role": role, "company_name": company,
+    })
     assert res.status_code == 201, res.text
     return res.json()
 
@@ -77,7 +79,8 @@ def add_supplier(client, name: str) -> int:
 
 @pytest.fixture
 def suppliers(client) -> dict[str, int]:
-    return {name.split()[0]: add_supplier(client, name) for name in ("Alpha Logistics", "Bravo Freight", "Charlie Cargo")}
+    names = ("Alpha Logistics", "Bravo Freight", "Charlie Cargo")
+    return {name.split()[0]: add_supplier(client, name) for name in names}
 
 
 def at(minutes: float) -> datetime:

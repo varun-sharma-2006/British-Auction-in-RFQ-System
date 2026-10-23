@@ -49,7 +49,7 @@ def create_supplier(body: SupplierCreate, db: Session = Depends(get_db), _: User
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise DomainError(409, f"A supplier named '{body.name}' already exists")
+        raise DomainError(409, f"A supplier named '{body.name}' already exists") from None
     return supplier
 
 

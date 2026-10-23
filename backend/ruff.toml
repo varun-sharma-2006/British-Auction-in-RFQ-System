@@ -1,0 +1,11 @@
+line-length = 120
+target-version = "py311"
+extend-exclude = ["alembic/versions"]
+
+[lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "C4"]
+ignore = ["B008"]  # FastAPI's Depends() in argument defaults is the idiom
+
+[lint.per-file-ignores]
+"tests/*" = ["B023"]
+"tests/conftest.py" = ["E402"]

@@ -58,7 +58,8 @@ def main() -> None:
         if mine:
             target = min(target, Decimal(mine["total_amount"]))
         total = (target * Decimal(1 - random.uniform(0.005, 0.02))).quantize(Decimal("1"), ROUND_DOWN)
-        origin, dest = (total * Decimal("0.05")).quantize(Decimal("1")), (total * Decimal("0.04")).quantize(Decimal("1"))
+        origin = (total * Decimal("0.05")).quantize(Decimal("1"))
+        dest = (total * Decimal("0.04")).quantize(Decimal("1"))
 
         res = api.post(f"/rfqs/{rfq_id}/bids", headers=bidder["headers"], json={
             "carrier_name": f"{bidder['name'].split()[0]} Line-haul",

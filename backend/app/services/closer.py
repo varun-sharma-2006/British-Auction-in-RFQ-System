@@ -11,6 +11,7 @@ bid is simply picked up on the next tick. In a larger deployment this is the
 piece that becomes a Celery beat task (or per-auction ETA tasks).
 """
 import asyncio
+import contextlib
 import logging
 
 from sqlalchemy import or_, select
@@ -52,7 +53,5 @@ async def run_closer(interval: float, stop: asyncio.Event) -> None:
                 await notify_rfq_changed(rfq_id, "status_changed")
         except Exception:
             log.exception("Auction closer iteration failed")
-        try:
+        with contextlib.suppress(TimeoutError):
             await asyncio.wait_for(stop.wait(), timeout=interval)
-        except asyncio.TimeoutError:
-            pass

@@ -65,7 +65,7 @@ def create_rfq(db: Session, data: RfqCreate, created_by_id: int | None = None) -
         db.flush()
     except IntegrityError:
         db.rollback()
-        raise DomainError(409, f"Reference ID '{data.reference_id}' is already in use")
+        raise DomainError(409, f"Reference ID '{data.reference_id}' is already in use") from None
 
     if not data.reference_id:
         rfq.reference_id = f"RFQ-{now.year}-{rfq.id:05d}"
@@ -101,7 +101,8 @@ def sync_status(db: Session, rfq: Rfq, now: datetime) -> bool:
         if new == AuctionStatus.FORCE_CLOSED:
             db.add(AuctionEvent(
                 rfq_id=rfq.id, event_type=EventType.AUCTION_FORCE_CLOSED, occurred_at=rfq.current_close_at,
-                message=f"Auction force-closed at the forced close time after {rfq.extension_count} extension(s).{tail}",
+                message=f"Auction force-closed at the forced close time after "
+                        f"{rfq.extension_count} extension(s).{tail}",
             ))
         else:
             db.add(AuctionEvent(

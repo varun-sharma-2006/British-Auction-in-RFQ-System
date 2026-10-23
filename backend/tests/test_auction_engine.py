@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -15,12 +15,12 @@ from app.services.auction_engine import (
     rank_changed,
 )
 
-CLOSE = datetime(2030, 1, 1, 18, 0, tzinfo=timezone.utc)   # 6:00 PM, as in the assignment examples
+CLOSE = datetime(2030, 1, 1, 18, 0, tzinfo=UTC)   # 6:00 PM, as in the assignment examples
 FORCED = CLOSE + timedelta(minutes=30)
 
 
 def t(h, m, s=0):
-    return datetime(2030, 1, 1, h, m, s, tzinfo=timezone.utc)
+    return datetime(2030, 1, 1, h, m, s, tzinfo=UTC)
 
 
 def decide(trigger, before, after, bid_time=t(17, 55), close=CLOSE, forced=FORCED, x=10, y=5):
