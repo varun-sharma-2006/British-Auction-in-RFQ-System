@@ -25,8 +25,9 @@ export function Layout() {
             {isBuyer && <NavLink to="/suppliers">Suppliers</NavLink>}
           </nav>
           <div className="topbar-right">
-            <span className={`live ${live ? "on" : ""}`} title={live ? "Live updates connected" : "Reconnecting…"}>
-              <i /> {live ? "Live" : "Offline"}
+            <span className={`live ${live ? "on" : ""}`}
+              title={live ? "Live updates connected" : "Live connection unavailable: refreshing every few seconds"}>
+              <i /> {live ? "Live" : "Auto-refresh"}
             </span>
             {user && (
               <div className="user">

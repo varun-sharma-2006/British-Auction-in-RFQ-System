@@ -20,6 +20,13 @@ class Settings(BaseSettings):
     # How often the availability Bloom filters are rebuilt from the database (seconds).
     bloom_rebuild_seconds: float = 300
 
+    # Serverless hosts (Vercel) freeze instances between requests, so background loops can't be relied on:
+    # close due auctions opportunistically on incoming API requests (throttled) ...
+    close_on_request: bool = False
+    close_on_request_every_seconds: float = 5
+    # ... and treat an in-memory Bloom filter older than this as stale (rebuilt on the next check).
+    bloom_max_age_seconds: float | None = None
+
     # Directory of the built frontend (frontend/dist). When set, the API also serves the SPA: one URL, one container.
     frontend_dist: str | None = None
 

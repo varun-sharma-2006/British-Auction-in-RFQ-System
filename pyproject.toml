@@ -1,0 +1,28 @@
+# Used by Vercel (Python runtime). Local development and Docker use backend/requirements.txt;
+# backend/tests/test_deploy_config.py keeps the two dependency lists identical.
+[project]
+name = "british-auction-rfq"
+version = "1.0.0"
+description = "RFQ system with British-auction bidding (FastAPI + React)"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi==0.115.6",
+    "uvicorn[standard]==0.34.0",
+    "SQLAlchemy==2.0.36",
+    "psycopg[binary]==3.2.3",
+    "alembic==1.14.0",
+    "pydantic==2.10.4",
+    "pydantic-settings==2.7.0",
+    "python-dotenv==1.0.1",
+    "httpx==0.28.1",
+    "PyJWT==2.10.1",
+    "email-validator==2.2.0",
+    "celery==5.4.0",
+    "redis==5.2.1",
+]
+
+[tool.vercel]
+entrypoint = "vercel_app:app"
+
+[tool.vercel.scripts]
+build = "python vercel_build.py"

@@ -97,9 +97,16 @@ docker run -p 8000:8000 -e DATABASE_URL=postgresql://user:pass@host:5432/db -e S
 ```
 API and UI on **http://localhost:8000**.
 
-**Hosting:** a free Render web service (Docker) with a free [Neon](https://neon.tech) PostgreSQL database; set
-`DATABASE_URL`, `JWT_SECRET` and `SEED_DEMO=true`. After every green CI run on `main`, `.github/workflows/image.yml`
-also publishes this image to GitHub Container Registry for any container host.
+### Option D: Vercel (serverless, free) + Neon PostgreSQL
+
+Import the repo in Vercel and set `DATABASE_URL` (Neon), `JWT_SECRET` and `SEED_DEMO=true`. `pyproject.toml` points
+Vercel at `vercel_app.py`, and `vercel_build.py` migrates the database, seeds demo data and builds the frontend.
+Because serverless instances are frozen between requests, that entrypoint switches to: auctions closing on the next
+request (throttled), in-memory Bloom filters refreshing every minute, and pages polling every few seconds when the
+WebSocket isn't connected. Status is always computed from the server clock, so correctness doesn't depend on it.
+
+After every green CI run on `main`, `.github/workflows/image.yml` also publishes the container image to GitHub
+Container Registry for any container host (Render, Railway, Fly, Kubernetes, ...).
 
 ### Option C: Local development
 

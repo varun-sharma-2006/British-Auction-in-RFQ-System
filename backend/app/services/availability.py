@@ -14,6 +14,7 @@ Keeping the filter complete:
   * with REDIS_URL set, the bits live in Redis, so all API replicas share one filter.
 """
 import logging
+import time
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -43,6 +44,7 @@ KINDS = {
 }
 
 _filters: dict[str, BloomFilter] = {}
+_built_at: float | None = None   # monotonic time of the last full rebuild in this process
 stats: Counter = Counter()   # answered_by_bloom, confirmed_taken, false_positive, fallback
 
 
@@ -65,8 +67,21 @@ def get_filter(kind: str) -> BloomFilter:
 
 def reset_filters() -> None:
     """Forget filter objects (tests switch storage backends)."""
+    global _built_at
     _filters.clear()
     stats.clear()
+    _built_at = None
+
+
+def _refresh_if_stale(db: Session) -> None:
+    """Serverless: each short-lived instance has its own in-memory filter that misses inserts made by other
+    instances, so rebuild it when it is older than BLOOM_MAX_AGE_SECONDS. (Redis-backed filters are shared
+    and always current, so they never need this.)"""
+    s = get_settings()
+    if s.redis_url or s.bloom_max_age_seconds is None:
+        return
+    if _built_at is None or time.monotonic() - _built_at > s.bloom_max_age_seconds:
+        rebuild_all(db)
 
 
 def _db_taken(db: Session, kind: Kind, value: str) -> bool:
@@ -80,6 +95,7 @@ def check(db: Session, kind_name: str, raw: str) -> tuple[bool, str]:
     kind = KINDS[kind_name]
     value = kind.normalize(raw)
     try:
+        _refresh_if_stale(db)
         maybe = get_filter(kind_name).might_contain(value)
     except Exception:
         log.exception("Bloom filter unavailable; falling back to the database")
@@ -101,8 +117,10 @@ def note_added(kind_name: str, raw: str) -> None:
 
 
 def rebuild_all(db: Session) -> dict[str, int]:
+    global _built_at
     counts = {}
     for name, kind in KINDS.items():
         values = (kind.normalize(v) for (v,) in db.execute(select(kind.column)))
         counts[name] = get_filter(name).rebuild(values)
+    _built_at = time.monotonic()
     return counts

@@ -3,6 +3,7 @@ import contextlib
 import logging
 import os
 import socket
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -19,9 +20,9 @@ from app.api.routes import authed, router, ws_router
 from app.config import get_settings
 from app.db import SessionLocal
 from app.errors import DomainError
-from app.realtime import relay_from_redis
+from app.realtime import notify_rfq_changed, relay_from_redis
 from app.services import availability
-from app.services.closer import run_closer
+from app.services.closer import close_due_auctions, run_closer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 settings = get_settings()
@@ -69,9 +70,30 @@ INSTANCE = settings.instance_name or f"{socket.gethostname()}:{os.getpid()}"
 @app.middleware("http")
 async def served_by(request: Request, call_next):
     """Tag every response with the replica that produced it (visible through the load balancer)."""
+    if settings.close_on_request and request.url.path.startswith("/api/"):
+        await close_due_opportunistically()
     response = await call_next(request)
     response.headers["X-Served-By"] = INSTANCE
     return response
+
+
+_last_close_check = 0.0
+
+
+async def close_due_opportunistically() -> None:
+    """Serverless mode: run the auction closer on incoming traffic, at most once every few seconds per instance.
+    Status is computed from the clock on every read anyway; this persists transitions and writes the
+    'auction closed' entries to the activity log (timestamped at the real close time)."""
+    global _last_close_check
+    now = time.monotonic()
+    if now - _last_close_check < settings.close_on_request_every_seconds:
+        return
+    _last_close_check = now
+    try:
+        for rfq_id in await run_in_threadpool(close_due_auctions):
+            await notify_rfq_changed(rfq_id, "status_changed")
+    except Exception:
+        log.exception("Opportunistic close failed")
 
 
 app.add_middleware(

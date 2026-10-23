@@ -120,14 +120,20 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
   return { data, error, loading, reload };
 }
 
-/** Re-run `fn` every `ms` while the tab is visible (safety net behind the WebSocket). */
+/**
+ * Re-run `fn` every `ms` while the tab is visible: a safety net behind the WebSocket. When the live
+ * connection is down (e.g. a serverless host recycling it), poll every few seconds instead, so the
+ * page still feels live.
+ */
 export function usePolling(fn: () => void, ms: number) {
   const cb = useRef(fn);
   cb.current = fn;
+  const live = useConnectionStatus();
+  const interval = live ? ms : Math.min(ms, 4000);
   useEffect(() => {
     const id = setInterval(() => {
       if (document.visibilityState === "visible") cb.current();
-    }, ms);
+    }, interval);
     return () => clearInterval(id);
-  }, [ms]);
+  }, [interval]);
 }

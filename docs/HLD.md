@@ -69,6 +69,13 @@ flowchart LR
 
 Switching is configuration only: set `REDIS_URL` and `RUN_CLOSER=false`.
 
+A third, **serverless** mode (Vercel, entrypoint `vercel_app.py`) handles hosts that freeze instances between
+requests. It closes due auctions on incoming requests (throttled to once per 5 s per instance), rebuilds each
+instance's in-memory Bloom filter when it is older than a minute, and the UI polls every 4 s whenever its WebSocket
+is down. Status is derived from the clock on every read, so none of this affects correctness. Covered by
+`tests/test_serverless.py`, and checked in a browser with WebSockets disabled: a bid showed on another user's
+screen about 3 s later.
+
 ## 3. Bid submission flow (the critical path)
 
 ```mermaid
