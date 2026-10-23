@@ -75,9 +75,9 @@ docker run -p 8000:8000 -e DATABASE_URL=postgresql://user:pass@host:5432/db -e S
 ```
 API and UI on **http://localhost:8000**.
 
-**Hosting (free, no card):** [Neon](https://neon.tech) PostgreSQL + a [Hugging Face](https://huggingface.co/spaces)
-Docker Space. `.github/workflows/deploy-hf.yml` redeploys the Space automatically after every green CI run on `main`
-(setup steps are at the top of that file). `render.yaml` is also included for Render (**New → Blueprint**).
+**Hosting:** after every green CI run on `main`, `.github/workflows/image.yml` publishes this image to GitHub
+Container Registry; it runs on **Azure Container Apps** with **Azure Database for PostgreSQL**.
+`render.yaml` is also included for Render (**New → Blueprint**).
 
 ### Option C: Local development
 
