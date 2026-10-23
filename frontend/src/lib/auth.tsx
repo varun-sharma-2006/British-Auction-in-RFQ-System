@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { api, configureAuth, type RegisterInput, type Role, type TokenResponse, type User } from "./api";
+import { api, configureAuth, type RegisterInput, type Role, type User } from "./api";
 
 interface AuthState {
   user: User | null;
@@ -11,65 +11,46 @@ interface AuthState {
 }
 
 const AuthContext = createContext<AuthState | null>(null);
-const KEY = "rfq.session";
 
-function readSession(): TokenResponse | null {
-  try {
-    const raw = localStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as TokenResponse) : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeSession(s: TokenResponse | null) {
-  try {
-    if (s) localStorage.setItem(KEY, JSON.stringify(s));
-    else localStorage.removeItem(KEY);
-  } catch {
-    /* storage unavailable: session lasts for this tab only */
-  }
-}
-
+/**
+ * The session itself is an HttpOnly cookie set by the server, invisible to JavaScript. This context only
+ * keeps the signed-in user in memory; on load it asks the server who the cookie belongs to.
+ */
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<TokenResponse | null>(readSession);
+  const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
 
+  const dropSession = useCallback(() => setUser(null), []);
   const logout = useCallback(() => {
-    writeSession(null);
-    setSession(null);
+    setUser(null);
+    void api.logout();   // clears the cookie server-side
   }, []);
 
-  // The API client reads the token from here and logs out on a 401 (expired/invalid token).
-  configureAuth(() => session?.access_token ?? null, logout);
+  // A 401 anywhere (expired or revoked session) signs the user out of the UI.
+  configureAuth(dropSession);
 
-  // Re-validate a stored session once on load.
   useEffect(() => {
-    if (!session) {
-      setReady(true);
-      return;
-    }
     api.me()
-      .then((user) => setSession((s) => (s ? { ...s, user } : s)))
-      .catch(() => logout())
+      .then(setUser)
+      .catch(() => setUser(null))
       .finally(() => setReady(true));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const value = useMemo<AuthState>(() => {
-    const accept = (t: TokenResponse) => {
-      writeSession(t);
-      setSession(t);
+  const value = useMemo<AuthState>(() => ({
+    user,
+    ready,
+    login: async (email, password) => {
+      const t = await api.login(email, password);
+      setUser(t.user);
       return t.user;
-    };
-    return {
-      user: session?.user ?? null,
-      ready,
-      login: async (email, password) => accept(await api.login(email, password)),
-      register: async (input) => accept(await api.register(input)),
-      logout,
-    };
-  }, [session, ready, logout]);
+    },
+    register: async (input) => {
+      const t = await api.register(input);
+      setUser(t.user);
+      return t.user;
+    },
+    logout,
+  }), [user, ready, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -51,6 +51,12 @@ class Settings(BaseSettings):
     # Auth. Override JWT_SECRET in every real deployment.
     jwt_secret: str = "dev-only-change-me-please-32-bytes!!"
     access_token_minutes: int = 12 * 60
+    session_cookie: str = "rfq_session"   # HttpOnly cookie the web UI authenticates with
+
+    # Abuse protection for public deployments (tests switch it off).
+    rate_limit_enabled: bool = True
+    # Vercel Cron sends "Authorization: Bearer $CRON_SECRET"; the nightly demo reset requires it.
+    cron_secret: str | None = None
     password_hash_iterations: int = 390_000
 
     @property

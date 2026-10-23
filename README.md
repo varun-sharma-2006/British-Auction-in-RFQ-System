@@ -61,7 +61,10 @@ Each role signs in to its own dashboard (both update live):
   last-second bids and asserts exactly 5 chained extensions ending at the forced close. It fails if the lock is removed.
 * **Pure rules engine**, unit-tested on its own, plus a TypeScript mirror that tells suppliers *before* they submit
   whether their bid will extend the auction. Both are tested against the same scenarios.
-* **Real roles.** JWT auth: buyers create RFQs, suppliers bid, and a supplier can only bid as their own company.
+* **Real roles, secure sessions.** Buyers create RFQs, suppliers bid, and a supplier can only bid as their own company.
+  The session is an HttpOnly, SameSite cookie, so the browser keeps no token that a script could steal.
+* **A demo that stays clean.** Rate limits on sign-up, login, RFQ creation, bids and availability checks (shared via
+  Redis across replicas), plus a nightly Vercel Cron job that wipes and reseeds the public demo.
 * **See the load balancing live:** the app's **System** page fires a burst of parallel requests and charts which server instance answered each one. On the live demo, Vercel's edge spreads 80 requests over ~50 auto-scaled instances; under `docker compose`, nginx spreads them over the API replicas.
 * **Load balanced.** In `docker-compose`, nginx spreads traffic over **3 API replicas** (`least_conn`, Docker DNS
   re-resolution, WebSocket upgrade). Replicas are stateless (JWT auth, row locks in Postgres, updates via Redis), so no

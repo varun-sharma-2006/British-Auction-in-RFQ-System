@@ -246,31 +246,26 @@ export class ApiError extends Error {
 
 const BASE = import.meta.env.VITE_API_URL ?? "/api";
 
-// Set by the AuthProvider: where to read the token and what to do when the server says it's no longer valid.
-let getToken: () => string | null = () => null;
+// Set by the AuthProvider: what to do when the server says the session is no longer valid.
 let onUnauthorized: () => void = () => {};
-export function configureAuth(tokenGetter: () => string | null, unauthorized: () => void) {
-  getToken = tokenGetter;
+export function configureAuth(unauthorized: () => void) {
   onUnauthorized = unauthorized;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = getToken();
   let res: Response;
   try {
     res = await fetch(`${BASE}${path}`, {
       ...init,
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...init?.headers,
-      },
+      // The session lives in an HttpOnly cookie set by the server: no token is ever stored or read by JS.
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", ...init?.headers },
     });
   } catch {
     throw new ApiError(0, "Cannot reach the server. Is the backend running?");
   }
   const body = await res.json().catch(() => null);
-  if (res.status === 401 && token && !path.startsWith("/auth/")) onUnauthorized();
+  if (res.status === 401 && !path.startsWith("/auth/")) onUnauthorized();
   if (!res.ok) throw new ApiError(res.status, body?.detail ?? `Request failed (${res.status})`);
   return body as T;
 }
@@ -281,6 +276,7 @@ export const api = {
   register: (input: RegisterInput) =>
     request<TokenResponse>("/auth/register", { method: "POST", body: JSON.stringify(input) }),
   me: () => request<User>("/auth/me"),
+  logout: () => fetch(`${BASE}/auth/logout`, { method: "POST", credentials: "same-origin" }).catch(() => undefined),
   listRfqs: (status?: AuctionStatus) => request<RfqSummary[]>(`/rfqs${status ? `?status=${status}` : ""}`),
   getRfq: (id: number) => request<RfqDetail>(`/rfqs/${id}`),
   createRfq: (input: RfqCreateInput) => request<RfqDetail>("/rfqs", { method: "POST", body: JSON.stringify(input) }),

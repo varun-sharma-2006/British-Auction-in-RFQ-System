@@ -14,6 +14,13 @@ function setConnected(c: boolean) {
   connectionListeners.forEach((l) => l(c));
 }
 
+/**
+ * "poll": the deployment can't push updates to every browser (serverless: many instances, no shared
+ * pub/sub), so don't pretend: skip the WebSocket and refresh every few seconds instead. Set at build time.
+ */
+export const POLL_ONLY = import.meta.env.VITE_LIVE_MODE === "poll";
+export const FAST_POLL_MS = 3000;
+
 function wsUrl(): string {
   const explicit = import.meta.env.VITE_WS_URL as string | undefined;
   if (explicit) return explicit;
@@ -22,6 +29,7 @@ function wsUrl(): string {
 }
 
 function ensureSocket(retryMs = 1000) {
+  if (POLL_ONLY) return;
   if (socket && socket.readyState <= WebSocket.OPEN) return;
   socket = new WebSocket(wsUrl());
   socket.onopen = () => {
@@ -129,7 +137,7 @@ export function usePolling(fn: () => void, ms: number) {
   const cb = useRef(fn);
   cb.current = fn;
   const live = useConnectionStatus();
-  const interval = live ? ms : Math.min(ms, 4000);
+  const interval = live ? ms : Math.min(ms, FAST_POLL_MS);
   useEffect(() => {
     const id = setInterval(() => {
       if (document.visibilityState === "visible") cb.current();

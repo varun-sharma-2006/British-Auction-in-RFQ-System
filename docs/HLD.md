@@ -214,10 +214,12 @@ flowchart LR
 | Concern | Approach |
 |---|---|
 | Passwords | PBKDF2-SHA256, 390k iterations, per-user salt, constant-time compare (stdlib only) |
-| Sessions | HS256 JWT, 12 h expiry, `JWT_SECRET` from the environment (Render generates one) |
+| Sessions | HS256 JWT (12 h) delivered as an **HttpOnly, SameSite=Lax cookie** (`Secure` over HTTPS). Page scripts can't read it, so XSS can't steal the session, and it isn't sent on cross-site POSTs (CSRF). The browser stores no token at all. API clients and scripts can still send `Authorization: Bearer`. |
 | Authorization | Route-level dependencies: `require_buyer` (create RFQ, add supplier), `require_supplier` (bid). Reads need any signed-in user. |
 | Bid impersonation | No `supplier_id` in the bid payload: it comes from the token. Covered by a test that sends a forged one. |
-| Account enumeration | Login returns the same error for unknown email and wrong password. Sign-up (and its availability check) necessarily reveals whether an email is registered; production would rate-limit those endpoints. |
+| Account enumeration | Login returns the same error for unknown email and wrong password. Sign-up and its availability check necessarily reveal whether an email is registered, so they are rate-limited. |
+| Abuse of the public demo | Rate limits: sign-up 5/h and login 20/min per IP, RFQ creation 20/h and bids 30/min per session, availability checks 60/min per IP. Shared through Redis across replicas, otherwise per instance. The client IP comes from `X-Real-IP`, which our nginx and Vercel set. A nightly Vercel Cron job (`/api/cron/reset-demo`, protected by `CRON_SECRET`) wipes and reseeds the demo. |
+| Live updates on serverless | Vercel instances share no pub/sub, so a WebSocket would only reach browsers on the same instance. The Vercel build doesn't open one at all: pages refresh every 3 s and the header says "Auto-refresh · 3 s", rather than claiming "Live". |
 | Input validation | Pydantic on every request, mirrored client-side, backed by DB `CHECK` constraints. |
 | Static files | SPA handler resolves paths and refuses anything outside the build directory. |
 | Money | `NUMERIC(14,2)` / `Decimal`, sent as strings: no float rounding in prices or rankings. |

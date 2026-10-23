@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, Query, Request, WebSocket, WebSocketDisconnect, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -10,6 +10,7 @@ from app.config import get_settings
 from app.db import get_db
 from app.errors import DomainError
 from app.models import AuctionStatus, Supplier, User
+from app.ratelimit import rate_limit
 from app.realtime import manager, notify_rfq_changed
 from app.schemas import (
     BidCreate,
@@ -25,7 +26,7 @@ from app.schemas import (
     SupplierDashboard,
     SupplierOut,
 )
-from app.services import availability, bidding, dashboard, rfq_service
+from app.services import availability, bidding, dashboard, demo, rfq_service
 
 router = APIRouter(prefix="/api")
 # Everything except /health needs a signed-in user; writes are additionally role-checked.
@@ -36,6 +37,18 @@ authed = APIRouter(prefix="/api", dependencies=[Depends(current_user)])
 def health():
     from app.main import INSTANCE  # which replica answered: useful behind the load balancer
     return {"status": "ok", "server_time": clock.utcnow(), "instance": INSTANCE}
+
+
+@router.get("/cron/reset-demo", tags=["meta"], include_in_schema=False)
+async def reset_demo(request: Request):
+    """Nightly wipe-and-reseed of a public demo (Vercel Cron). Requires CRON_SECRET and SEED_DEMO."""
+    s = get_settings()
+    if not (s.seed_demo and s.cron_secret):
+        raise DomainError(404, "Not found")
+    if request.headers.get("authorization") != f"Bearer {s.cron_secret}":
+        raise DomainError(401, "Unauthorized")
+    summary = await run_in_threadpool(demo.seed_demo, True)
+    return {"status": "reset", "summary": summary}
 
 
 @router.get("/system", tags=["meta"])
@@ -55,7 +68,9 @@ def system():
         "mode": mode,
         "load_balancer": balancer,
         "instance": INSTANCE,
-        "live_updates": "Redis pub/sub across replicas" if s.redis_url else "in-process WebSocket fan-out",
+        "live_updates": ("Redis pub/sub across replicas" if s.redis_url
+                         else "Polling every 3 s (serverless instances share no pub/sub)" if mode == "serverless"
+                         else "in-process WebSocket fan-out"),
         "auction_closer": ("Celery beat + worker" if s.redis_url and not s.run_closer
                            else "on incoming requests (serverless)" if s.close_on_request
                            else "in-process background task"),
@@ -92,7 +107,8 @@ def list_rfqs(status: AuctionStatus | None = Query(default=None), db: Session = 
     return rfq_service.list_rfqs(db, status)
 
 
-@authed.post("/rfqs", response_model=RfqDetail, status_code=status.HTTP_201_CREATED, tags=["rfqs"])
+@authed.post("/rfqs", response_model=RfqDetail, status_code=status.HTTP_201_CREATED, tags=["rfqs"],
+             dependencies=[Depends(rate_limit("create_rfq", 20, 3600, per_user=True))])
 async def create_rfq(body: RfqCreate, db: Session = Depends(get_db), buyer: User = Depends(require_buyer)):
     rfq = await run_in_threadpool(rfq_service.create_rfq, db, body, buyer.id)
     await notify_rfq_changed(rfq.id, "created")
@@ -110,7 +126,8 @@ def list_bids(rfq_id: int, db: Session = Depends(get_db)):
     return rfq_service.rfq_bids(db, rfq_id)
 
 
-@authed.post("/rfqs/{rfq_id}/bids", response_model=BidResult, status_code=status.HTTP_201_CREATED, tags=["bids"])
+@authed.post("/rfqs/{rfq_id}/bids", response_model=BidResult, status_code=status.HTTP_201_CREATED, tags=["bids"],
+             dependencies=[Depends(rate_limit("bid", 30, 60, per_user=True))])
 async def submit_bid(rfq_id: int, body: BidCreate, db: Session = Depends(get_db),
                      supplier: User = Depends(require_supplier)):
     result = await run_in_threadpool(bidding.submit_bid, db, rfq_id, supplier.supplier_id, body)

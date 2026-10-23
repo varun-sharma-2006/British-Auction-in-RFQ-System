@@ -80,7 +80,7 @@ export function SystemPage() {
       <div className="stats">
         <Stat icon={Network} accent="indigo" label="Load balancer" value={s.mode === "single" ? "None" : s.mode === "serverless" ? "Vercel" : "nginx"}
           hint={s.load_balancer} />
-        <Stat icon={Radio} accent="sky" label="Live updates" value={s.live_updates.startsWith("Redis") ? "Redis" : "In-process"} hint={s.live_updates} />
+        <Stat icon={Radio} accent="sky" label="Live updates" value={s.live_updates.startsWith("Redis") ? "Redis" : s.live_updates.startsWith("Polling") ? "Polling" : "In-process"} hint={s.live_updates} />
         <Stat icon={Gauge} accent="amber" label="Auction closer" value={s.auction_closer.startsWith("Celery") ? "Celery" : s.auction_closer.startsWith("on") ? "On request" : "Background"}
           hint={s.auction_closer} />
         <Stat icon={Server} accent="violet" label="This page served by" value={<span className="mono stat-mono">{s.instance}</span>} hint="X-Served-By of /api/system" />

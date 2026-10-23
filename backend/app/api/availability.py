@@ -5,9 +5,11 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_buyer
 from app.db import get_db
 from app.models import User
+from app.ratelimit import rate_limit
 from app.services import availability
 
-router = APIRouter(prefix="/api/availability", tags=["availability"])
+router = APIRouter(prefix="/api/availability", tags=["availability"],
+                   dependencies=[Depends(rate_limit("availability", 60, 60))])
 
 
 class Availability(BaseModel):

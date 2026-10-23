@@ -52,6 +52,7 @@ def test_registration_validation(client):
 
 
 def test_endpoints_require_a_valid_token(client, frozen):
+    client.cookies.clear()          # no session cookie: only the Authorization header counts below
     anon = {"Authorization": ""}
     assert client.get("/api/rfqs", headers=anon).status_code == 401
     assert client.get("/api/rfqs", headers={"Authorization": "Bearer not-a-jwt"}).status_code == 401
@@ -92,3 +93,30 @@ def test_rfq_records_its_buyer(client):
     with SessionLocal() as db:
         assert db.get(Rfq, rfq["id"]).created_by_id == me["id"]
 
+
+
+def test_browser_session_uses_an_httponly_cookie(client):
+    client.cookies.clear()
+    client.headers.pop("Authorization", None)
+    res = client.post("/api/auth/login", json={"email": "buyer@test.com", "password": "secret-pass-1"})
+    cookie = res.headers["set-cookie"]
+    assert "rfq_session=" in cookie and "HttpOnly" in cookie and "SameSite=lax" in cookie
+    assert "Secure" not in cookie                                # plain http (localhost) stays usable
+    assert client.get("/api/auth/me").json()["email"] == "buyer@test.com"   # cookie alone authenticates
+
+    assert client.post("/api/auth/logout").status_code == 204
+    client.cookies.clear()                                       # the browser drops it on the expired Set-Cookie
+    assert client.get("/api/auth/me").status_code == 401
+
+
+def test_cookie_is_secure_behind_https(client):
+    res = client.post("/api/auth/login", json={"email": "buyer@test.com", "password": "secret-pass-1"},
+                      headers={"x-forwarded-proto": "https"})
+    assert "Secure" in res.headers["set-cookie"]
+
+
+def test_bearer_token_still_works_for_api_clients(client):
+    client.cookies.clear()
+    tok = client.post("/api/auth/login", json={"email": "buyer@test.com", "password": "secret-pass-1"}).json()
+    client.cookies.clear()
+    assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {tok['access_token']}"}).status_code == 200

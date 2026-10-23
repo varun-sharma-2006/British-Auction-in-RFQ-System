@@ -1,7 +1,7 @@
 import { Gavel, LayoutDashboard, LogOut, Network, PlusCircle, Truck } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../lib/auth";
-import { useConnectionStatus } from "../lib/hooks";
+import { POLL_ONLY, useConnectionStatus } from "../lib/hooks";
 import { Avatar, Logo } from "./common";
 
 export function Layout() {
@@ -30,8 +30,10 @@ export function Layout() {
 
         <div className="sidebar-foot">
           <span className={`live ${live ? "on" : ""}`}
-            title={live ? "Live updates connected" : "Live connection unavailable: refreshing every few seconds"}>
-            <i /> {live ? "Live" : "Auto-refresh"}
+            title={live ? "Live updates pushed over WebSocket"
+              : POLL_ONLY ? "Serverless deployment: pages refresh every 3 seconds"
+                : "Live connection unavailable: refreshing every 3 seconds"}>
+            <i /> {live ? "Live" : "Auto-refresh · 3 s"}
           </span>
           {user && (
             <div className="user">

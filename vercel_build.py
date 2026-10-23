@@ -27,6 +27,9 @@ def main() -> None:
         print("DATABASE_URL is not set: skipping migrations (set it in the Vercel project settings).", flush=True)
 
     npm = "npm.cmd" if os.name == "nt" else "npm"
+    # Serverless instances don't share a pub/sub channel, so a WebSocket would only reach browsers on the
+    # same instance. Build the UI to refresh every few seconds instead, and say so in the header.
+    os.environ.setdefault("VITE_LIVE_MODE", "poll")
     run([npm, "ci", "--no-audit", "--no-fund"], frontend)
     run([npm, "run", "build"], frontend)
 

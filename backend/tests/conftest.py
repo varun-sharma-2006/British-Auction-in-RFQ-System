@@ -9,6 +9,7 @@ _SQLITE = "sqlite:///" + os.path.join(tempfile.gettempdir(), "british_auction_te
 os.environ["DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL", _SQLITE)
 os.environ["RUN_CLOSER"] = "false"
 os.environ["PASSWORD_HASH_ITERATIONS"] = "1000"  # fast hashing in tests
+os.environ["RATE_LIMIT_ENABLED"] = "false"       # tests make many requests; test_protection.py turns it on
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
