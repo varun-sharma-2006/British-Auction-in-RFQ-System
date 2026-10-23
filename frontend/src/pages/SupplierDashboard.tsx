@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
+import { Activity, Award, BellRing, Crown, TriangleAlert } from "lucide-react";
 import { ActivityFeed } from "../components/ActivityFeed";
 import { Card, Countdown, Empty, ErrorBox, RankBadge, Spinner, Stat, StatusBadge } from "../components/common";
 import { api, type Position, type SupplierDashboard } from "../lib/api";
@@ -37,6 +38,7 @@ export function SupplierDashboardPage() {
 
       {outbidLive.length > 0 && (
         <div className="alert alert-warn outbid-banner" role="status">
+          <BellRing size={18} />
           <span>
             You've been <strong>outbid</strong> in {outbidLive.length} live auction{outbidLive.length === 1 ? "" : "s"}:{" "}
             {outbidLive.map((a, i) => (
@@ -47,10 +49,10 @@ export function SupplierDashboardPage() {
       )}
 
       <div className="stats">
-        <Stat label="Live auctions I'm in" value={d.participating} hint={`${d.open_to_join} more open to join`} />
-        <Stat label="Leading (L1)" value={d.leading} tone="good" hint="Lowest price right now" />
-        <Stat label="Outbid" value={d.outbid} hint={d.outbid ? "Lower your quote to get back to L1" : "Nothing to react to"} />
-        <Stat label="Won" value={d.won} hint={`${d.lost} lost`} />
+        <Stat icon={Activity} accent="indigo" label="Live auctions I'm in" value={d.participating} hint={`${d.open_to_join} more open to join`} />
+        <Stat icon={Crown} accent="green" label="Leading (L1)" value={d.leading} tone="good" hint="Lowest price right now" />
+        <Stat icon={TriangleAlert} accent="amber" label="Outbid" value={d.outbid} hint={d.outbid ? "Lower your quote to get back to L1" : "Nothing to react to"} />
+        <Stat icon={Award} accent="violet" label="Won" value={d.won} hint={`${d.lost} lost`} />
       </div>
 
       <div className="detail-grid">
@@ -69,7 +71,6 @@ export function SupplierDashboardPage() {
                       <th className="num">L1 price</th>
                       <th className="num">Gap to L1</th>
                       <th>Closes</th>
-                      <th />
                     </tr>
                   </thead>
                   <tbody>
@@ -84,6 +85,11 @@ export function SupplierDashboardPage() {
                           <td>
                             <span className={`pos ${POSITION[a.position].cls}`}>{POSITION[a.position].label}</span>
                             <div className="meta"><RankBadge rank={a.my_rank} label={a.my_rank_label} /> of {a.supplier_count}</div>
+                            {a.position === "OUTBID" && (
+                              <Link to={`/rfqs/${a.id}`} className="btn btn-primary btn-sm lower-btn" onClick={(e) => e.stopPropagation()}>
+                                Lower quote
+                              </Link>
+                            )}
                           </td>
                           <td className="num">
                             <div className="strong">{money(a.my_best, a.currency)}</div>
@@ -96,13 +102,6 @@ export function SupplierDashboardPage() {
                           <td>
                             {live ? <Countdown target={a.current_close_at} start={a.bid_start_at} compact />
                               : <span className="muted">{dateTime(a.current_close_at)}</span>}
-                          </td>
-                          <td className="num">
-                            {a.position === "OUTBID" && (
-                              <Link to={`/rfqs/${a.id}`} className="btn btn-primary btn-sm" onClick={(e) => e.stopPropagation()}>
-                                Lower quote
-                              </Link>
-                            )}
                           </td>
                         </tr>
                       );

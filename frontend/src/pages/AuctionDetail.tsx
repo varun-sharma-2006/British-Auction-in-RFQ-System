@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { AuctionTimeline } from "../components/AuctionTimeline";
 import { BidForm } from "../components/BidForm";
-import { Card, Countdown, Empty, ErrorBox, RankBadge, Spinner, Stat, StatusBadge } from "../components/common";
+import { ArrowRight, CalendarDays, Clock3, IndianRupee, MapPin, Percent, Users } from "lucide-react";
+import { Avatar, Card, Countdown, Empty, ErrorBox, RankBadge, Spinner, Stat, StatusBadge } from "../components/common";
 import { api, type AuctionEvent, type Bid, type RfqDetail } from "../lib/api";
-import { TRIGGER_INFO, dateOnly, dateTime, money } from "../lib/format";
+import { TRIGGER_INFO, dateOnly, dateTime, money, timeOnly } from "../lib/format";
 import { syncServerClock, useAsync, useLiveUpdates, usePolling } from "../lib/hooks";
 
 export function AuctionDetailPage() {
@@ -50,24 +51,33 @@ export function AuctionDetailPage() {
 
   return (
     <>
-      <div className="crumbs"><Link to="/">← Dashboard</Link> · <Link to="/auctions">All auctions</Link></div>
+      <div className="crumbs"><Link to="/">Dashboard</Link> <span>/</span> <Link to="/auctions">All auctions</Link>
+        <span>/</span> <span className="mono">{r.reference_id}</span></div>
 
-      <div className="page-head detail-head">
-        <div>
-          <div className="title-row">
-            <h1>{r.name}</h1>
+      <section className={`hero hero-${r.status.toLowerCase()}`}>
+        <div className="hero-main">
+          <div className="hero-tags">
             <StatusBadge status={r.status} />
+            <span className="hero-chip">
+              {cfg.is_british_auction && cfg.trigger_type ? `British auction · ${TRIGGER_INFO[cfg.trigger_type].short}` : "Standard RFQ"}
+            </span>
+            <span className="hero-chip mono">{r.reference_id}</span>
           </div>
-          <p className="sub">
-            <span className="mono">{r.reference_id}</span>
-            {(r.origin || r.destination) && <> · {r.origin ?? "?"} → {r.destination ?? "?"}</>}
-            {" · "}Pickup {dateOnly(r.pickup_date)}
-          </p>
+          <h1>{r.name}</h1>
+          <div className="hero-lane">
+            {(r.origin || r.destination) && (
+              <span><MapPin size={15} /> {r.origin ?? "?"} <ArrowRight size={14} /> {r.destination ?? "?"}</span>
+            )}
+            <span><CalendarDays size={15} /> Pickup {dateOnly(r.pickup_date)}</span>
+          </div>
           {r.description && <p className="desc">{r.description}</p>}
         </div>
         <div className="head-clock">
+          <span className="clock-label"><Clock3 size={14} />
+            {r.status === "SCHEDULED" ? "Bidding opens" : r.status === "ACTIVE" ? "Time remaining" : "Auction ended"}
+          </span>
           {r.status === "ACTIVE" || r.status === "SCHEDULED" ? (
-            <Countdown target={r.current_close_at} start={r.bid_start_at} windowMinutes={cfg.trigger_window_minutes} />
+            <Countdown target={r.current_close_at} start={r.bid_start_at} windowMinutes={cfg.trigger_window_minutes} compact />
           ) : (
             <span className="countdown muted">
               {r.status === "FORCE_CLOSED" ? "Force closed" : "Closed"} at {dateTime(r.closed_at ?? r.current_close_at, true)}
@@ -75,7 +85,7 @@ export function AuctionDetailPage() {
           )}
           {r.extension_count > 0 && <span className="chip chip-warn">extended ×{r.extension_count}</span>}
         </div>
-      </div>
+      </section>
 
       {flash && <div className="alert alert-info flash">{flash}</div>}
 
@@ -90,11 +100,12 @@ export function AuctionDetailPage() {
       </Card>
 
       <div className="stats">
-        <Stat label="Current lowest bid (L1)" value={money(l1?.total_amount, r.currency)} hint={l1?.supplier_name ?? "No bids yet"} />
-        <Stat label="Below best opening quote" value={saving === null ? "—" : `${saving.toFixed(2)}%`} tone="good"
-          hint={bestOpening ? `Best opening ${money(bestOpening, r.currency)}` : undefined} />
-        <Stat label="Bids" value={r.bid_count} hint={`${r.supplier_count} supplier${r.supplier_count === 1 ? "" : "s"}`} />
-        <Stat label="Current bid close" value={dateTime(r.current_close_at, true)}
+        <Stat icon={IndianRupee} accent="green" label="Current lowest bid (L1)" value={money(l1?.total_amount, r.currency)}
+          hint={l1?.supplier_name ?? "No bids yet"} />
+        <Stat icon={Percent} accent="violet" label="Price drop" value={saving === null ? "—" : `${saving.toFixed(2)}%`} tone="good"
+          hint={bestOpening ? `vs best opening ${money(bestOpening, r.currency)}` : undefined} />
+        <Stat icon={Users} accent="sky" label="Bids" value={r.bid_count} hint={`${r.supplier_count} supplier${r.supplier_count === 1 ? "" : "s"}`} />
+        <Stat icon={Clock3} accent="amber" label="Current bid close" value={timeOnly(r.current_close_at)}
           hint={r.extension_count ? `Originally ${dateTime(r.bid_close_at, true)}` : `Forced close ${dateTime(r.forced_close_at)}`} />
       </div>
 
@@ -110,12 +121,9 @@ export function AuctionDetailPage() {
                     <tr>
                       <th>Rank</th>
                       <th>Supplier / Carrier</th>
-                      <th className="num">Freight</th>
-                      <th className="num">Origin</th>
-                      <th className="num">Destination</th>
+                      <th>Charges</th>
                       <th className="num">Total</th>
-                      <th className="num">Transit</th>
-                      <th>Valid until</th>
+                      <th>Terms</th>
                       <th className="num">Bids</th>
                     </tr>
                   </thead>
@@ -126,18 +134,29 @@ export function AuctionDetailPage() {
                         <tr key={q.supplier_id} className={q.rank === 1 ? "row-l1" : ""}>
                           <td><RankBadge rank={q.rank} label={q.rank_label} /></td>
                           <td>
-                            <div className="strong">{q.supplier_name}</div>
-                            <div className="meta">{q.carrier_name}</div>
+                            <div className="who">
+                              <Avatar name={q.supplier_name} />
+                              <div>
+                                <div className="strong">{q.supplier_name}</div>
+                                <div className="meta">{q.carrier_name}</div>
+                              </div>
+                            </div>
                           </td>
-                          <td className="num">{money(q.freight_charges, r.currency)}</td>
-                          <td className="num">{money(q.origin_charges, r.currency)}</td>
-                          <td className="num">{money(q.destination_charges, r.currency)}</td>
+                          <td>
+                            <dl className="charges">
+                              <dt>Freight</dt><dd>{money(q.freight_charges, r.currency)}</dd>
+                              <dt>Origin</dt><dd>{money(q.origin_charges, r.currency)}</dd>
+                              <dt>Destination</dt><dd>{money(q.destination_charges, r.currency)}</dd>
+                            </dl>
+                          </td>
                           <td className="num">
                             <div className="strong">{money(q.total_amount, r.currency)}</div>
                             {drop > 0 && <div className="meta good">−{money(drop, r.currency)} from first</div>}
                           </td>
-                          <td className="num">{q.transit_time_days} d</td>
-                          <td className="nowrap">{dateOnly(q.quote_validity_date)}</td>
+                          <td className="nowrap">
+                            <div>{q.transit_time_days} day{q.transit_time_days === 1 ? "" : "s"} transit</div>
+                            <div className="meta">valid to {dateOnly(q.quote_validity_date)}</div>
+                          </td>
                           <td className="num">
                             {q.bid_count}
                             <div className="meta">{dateTime(q.created_at, true)}</div>

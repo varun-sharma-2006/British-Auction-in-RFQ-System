@@ -60,7 +60,7 @@ def main() -> None:
         buyer.get_by_role("link", name="Create RFQ").first.click()
         now = datetime.now()
         fmt = "%Y-%m-%dT%H:%M"
-        buyer.get_by_label("RFQ name").fill("Nagpur -> Surat | 32ft MXL, express")
+        buyer.get_by_label("RFQ name").fill("Nagpur → Surat | 32ft MXL, express")
         buyer.get_by_label("Origin").fill("Nagpur (MIHAN)")
         buyer.get_by_label("Destination").fill("Surat (Sachin GIDC)")
         buyer.get_by_label("Pickup / Service date").fill((date.today() + timedelta(days=3)).isoformat())

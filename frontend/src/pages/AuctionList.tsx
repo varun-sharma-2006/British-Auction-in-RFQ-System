@@ -1,3 +1,4 @@
+import { Gavel, MessagesSquare, Timer, TrendingDown } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Card, Countdown, Empty, ErrorBox, Spinner, Stat, StatusBadge } from "../components/common";
@@ -47,14 +48,14 @@ export function AuctionListPage() {
 
       {m && (
         <div className="stats">
-          <Stat label="Active auctions" value={m.active_auctions} hint={`${m.total_auctions} total`} />
-          <Stat label="Bids per RFQ" value={m.avg_bids_per_rfq.toFixed(1)} hint={`${m.total_bids} bids in total`} />
-          <Stat
+          <Stat icon={Gavel} accent="indigo" label="Active auctions" value={m.active_auctions} hint={`${m.total_auctions} total`} />
+          <Stat icon={MessagesSquare} accent="sky" label="Bids per RFQ" value={m.avg_bids_per_rfq.toFixed(1)} hint={`${m.total_bids} bids in total`} />
+          <Stat icon={Timer} accent="amber"
             label="Bids per RFQ: extended vs not"
             value={`${m.avg_bids_extended?.toFixed(1) ?? "—"} vs ${m.avg_bids_not_extended?.toFixed(1) ?? "—"}`}
             hint={`${m.extended_auctions} auction(s) were extended`}
           />
-          <Stat
+          <Stat icon={TrendingDown} accent="green"
             label="Price drop below best opening quote"
             value={pct(m.avg_price_improvement_pct)}
             tone="good"

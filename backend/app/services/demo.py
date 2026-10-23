@@ -35,16 +35,16 @@ SUPPLIERS = [
 
 # Lanes for refreshed rounds: (name, origin, destination, description)
 LANES = [
-    ("Ahmedabad -> Kolkata | 2 x 40ft HC", "Ahmedabad (Sanand)", "Kolkata (Dankuni)",
+    ("Ahmedabad → Kolkata | 2 x 40ft HC", "Ahmedabad (Sanand)", "Kolkata (Dankuni)",
      "Auto components, 2 x 40ft HC, loading on pickup date morning."),
-    ("Pune -> Hyderabad | 14ft LCV, express", "Chakan, Pune", "Hyderabad (Shamshabad)",
+    ("Pune → Hyderabad | 14ft LCV, express", "Chakan, Pune", "Hyderabad (Shamshabad)",
      "Electronics, time-critical. Bid now to watch it extend."),
-    ("Nagpur -> Surat | 32ft MXL", "Nagpur (MIHAN)", "Surat (Sachin GIDC)", "Synthetic yarn, 14 tonnes, palletised."),
-    ("Ludhiana -> Mundra | Export FCL 40ft", "Ludhiana ICD", "Mundra Port",
+    ("Nagpur → Surat | 32ft MXL", "Nagpur (MIHAN)", "Surat (Sachin GIDC)", "Synthetic yarn, 14 tonnes, palletised."),
+    ("Ludhiana → Mundra | Export FCL 40ft", "Ludhiana ICD", "Mundra Port",
      "Export textiles, vessel cut-off 3 days after pickup."),
-    ("Bengaluru -> Chennai | Reefer 20ft", "Bengaluru (Hoskote)", "Chennai Port",
+    ("Bengaluru → Chennai | Reefer 20ft", "Bengaluru (Hoskote)", "Chennai Port",
      "Temperature-controlled (2-8 C) vaccines."),
-    ("Indore -> Delhi | Part load 6T", "Indore (Pithampur)", "Delhi (Okhla)", "FMCG cartons, tail-lift required."),
+    ("Indore → Delhi | Part load 6T", "Indore (Pithampur)", "Delhi (Okhla)", "FMCG cartons, tail-lift required."),
 ]
 
 

@@ -1,4 +1,9 @@
-# British Auction in an RFQ System
+# BidPulse: British Auction in an RFQ System
+
+**▶ Live demo: [britishauctionrfq.vercel.app](https://britishauctionrfq.vercel.app)**. Use the one-click demo
+accounts on the sign-in page (Buyer, BlueDart, Gati, Rivigo; password `demo1234`). Open a buyer and a supplier in two
+browsers to watch bids, rank changes and extensions happen live. The demo keeps itself stocked with live auctions.
+*(Free serverless hosting: the first request after a quiet period can take a few seconds.)*
 
 [![CI](https://github.com/varun-sharma-2006/British-Auction-in-RFQ-System/actions/workflows/ci.yml/badge.svg)](https://github.com/varun-sharma-2006/British-Auction-in-RFQ-System/actions/workflows/ci.yml)
 

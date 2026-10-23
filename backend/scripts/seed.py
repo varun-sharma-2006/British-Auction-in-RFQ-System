@@ -48,7 +48,7 @@ def run(reset: bool, if_empty: bool = False) -> None:
 
         # 1) Closed two days ago, extended twice by L1 changes.
         c = now - timedelta(days=2)
-        r = b.auction(m(c, -180), name="Mumbai -> Delhi | 20ft container, FTL", origin="Nhava Sheva, Mumbai",
+        r = b.auction(m(c, -180), name="Mumbai → Delhi | 20ft container, FTL", origin="Nhava Sheva, Mumbai",
                       destination="ICD Tughlakabad, Delhi", start=m(c, -120), close=c, forced=m(c, 30),
                       trigger=TriggerType.L1_CHANGE, desc="Weekly FTL lane, 18 tonnes, palletised FMCG.")
         b.bid(r, m(c, -110), "BlueDart", 84000, 4500, 3500, "BlueDart Surface", 3)
@@ -62,7 +62,7 @@ def run(reset: bool, if_empty: bool = False) -> None:
 
         # 2) Yesterday: a bidding war that ran into the forced close.
         c = now - timedelta(days=1)
-        r = b.auction(m(c, -150), name="Chennai -> Bengaluru | Reefer 32ft", origin="Chennai Port",
+        r = b.auction(m(c, -150), name="Chennai → Bengaluru | Reefer 32ft", origin="Chennai Port",
                       destination="Bengaluru (Hoskote)", start=m(c, -90), close=c, forced=m(c, 12), x=10, y=5,
                       desc="Temperature-controlled (2-8 C) pharma consignment.")
         b.bid(r, m(c, -80), "TCI", 52000, 2500, 2000, "TCI Reefer", 1)
@@ -76,7 +76,7 @@ def run(reset: bool, if_empty: bool = False) -> None:
         add_live_auctions(db, now)
 
         # 7) A plain RFQ (British Auction disabled) for comparison in the metrics.
-        r = b.auction(m(now, -30), name="Jaipur -> Indore | Part load 3T", origin="Jaipur (Sitapura)",
+        r = b.auction(m(now, -30), name="Jaipur → Indore | Part load 3T", origin="Jaipur (Sitapura)",
                       destination="Indore (Pithampur)", start=m(now, -20), close=m(now, 180), british=False)
         b.bid(r, m(now, -15), "VRL", 21000, 900, 800, "VRL Part Load", 3)
         b.bid(r, m(now, -5), "Gati", 22500, 700, 700, "Gati PTL", 2)

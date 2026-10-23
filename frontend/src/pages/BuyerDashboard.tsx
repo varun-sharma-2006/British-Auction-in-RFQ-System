@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
+import { Gavel, IndianRupee, MessagesSquare, TrendingDown } from "lucide-react";
 import { ActivityFeed } from "../components/ActivityFeed";
 import { Card, Countdown, Empty, ErrorBox, Spinner, Stat, StatusBadge } from "../components/common";
 import { api, type BuyerDashboard } from "../lib/api";
@@ -28,11 +29,11 @@ export function BuyerDashboardPage() {
       </div>
 
       <div className="stats">
-        <Stat label="Live auctions" value={d.active} hint={`${d.scheduled} scheduled · ${d.total_rfqs} total`} />
-        <Stat label="Bids received" value={d.bids_received} hint={`${d.extensions} time extension(s) triggered`} />
-        <Stat label="Saved by competition" value={money(d.savings_total)} tone="good"
+        <Stat icon={Gavel} accent="indigo" label="Live auctions" value={d.active} hint={`${d.scheduled} scheduled · ${d.total_rfqs} total`} />
+        <Stat icon={MessagesSquare} accent="sky" label="Bids received" value={d.bids_received} hint={`${d.extensions} time extension(s) triggered`} />
+        <Stat icon={IndianRupee} accent="green" label="Saved by competition" value={money(d.savings_total)} tone="good"
           hint="Best opening quotes minus current L1" />
-        <Stat label="Average price drop" value={d.avg_savings_pct === null ? "—" : `${d.avg_savings_pct.toFixed(2)}%`}
+        <Stat icon={TrendingDown} accent="violet" label="Average price drop" value={d.avg_savings_pct === null ? "—" : `${d.avg_savings_pct.toFixed(2)}%`}
           tone="good" hint="Below the best opening quote" />
       </div>
 
