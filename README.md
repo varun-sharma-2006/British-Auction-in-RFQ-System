@@ -73,8 +73,11 @@ Open **http://localhost:8080** · API docs: http://localhost:8000/docs
 docker build -t british-auction .
 docker run -p 8000:8000 -e DATABASE_URL=postgresql://user:pass@host:5432/db -e SEED_DEMO=true british-auction
 ```
-API and UI on **http://localhost:8000**. To deploy: on Render, choose **New → Blueprint** and pick this repo
-(`render.yaml` provisions Postgres and the web service).
+API and UI on **http://localhost:8000**.
+
+**Hosting (free, no card):** [Neon](https://neon.tech) PostgreSQL + a [Hugging Face](https://huggingface.co/spaces)
+Docker Space. `.github/workflows/deploy-hf.yml` redeploys the Space automatically after every green CI run on `main`
+(setup steps are at the top of that file). `render.yaml` is also included for Render (**New → Blueprint**).
 
 ### Option C: Local development
 

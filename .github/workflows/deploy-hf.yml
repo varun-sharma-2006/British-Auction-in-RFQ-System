@@ -1,0 +1,54 @@
+name: Deploy to Hugging Face Spaces
+
+# Continuous deployment of the single-container app (Dockerfile at the repo root) to a Hugging Face
+# Docker Space. Setup (one time):
+#   1. Create a Space: huggingface.co/new-space -> SDK "Docker" -> blank.
+#   2. In the Space settings, add secrets DATABASE_URL (e.g. a Neon connection string) and JWT_SECRET,
+#      and a variable SEED_DEMO=true.
+#   3. In this GitHub repo: Settings -> Secrets and variables -> Actions:
+#        secret   HF_TOKEN  = a Hugging Face access token with "write" permission
+#        variable HF_SPACE  = <hf-username>/<space-name>
+# Until HF_TOKEN is set this workflow skips itself, so it never shows a failure.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    # Only ship commits that passed CI (or a manual run).
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_SPACE: ${{ vars.HF_SPACE }}
+    steps:
+      - name: Skip when Hugging Face isn't configured
+        if: env.HF_TOKEN == '' || env.HF_SPACE == ''
+        run: echo "HF_TOKEN / HF_SPACE not set; nothing to deploy."
+
+      - uses: actions/checkout@v4
+        if: env.HF_TOKEN != '' && env.HF_SPACE != ''
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Push a snapshot to the Space
+        if: env.HF_TOKEN != '' && env.HF_SPACE != ''
+        run: |
+          # The Space only needs the code. Images/GIFs are dropped because the Hub rejects binary
+          # files outside Git LFS, and a fresh orphan commit keeps them out of the pushed history too.
+          git checkout --orphan hf-deploy
+          git rm -r -q --cached docs/screenshots docs/demo.gif
+          rm -rf docs/screenshots docs/demo.gif
+          {
+            printf -- '---\ntitle: British Auction RFQ\nemoji: 🚚\ncolorFrom: blue\ncolorTo: indigo\n'
+            printf -- 'sdk: docker\napp_port: 8000\npinned: false\n---\n\n'
+            cat README.md
+          } > README.space.md && mv README.space.md README.md
+          git -c user.name="github-actions" -c user.email="actions@github.com" add -A
+          git -c user.name="github-actions" -c user.email="actions@github.com" \
+            commit -q -m "Deploy ${GITHUB_SHA::7} from GitHub"
+          git push --force "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}" hf-deploy:main
