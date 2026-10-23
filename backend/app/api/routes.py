@@ -14,15 +14,17 @@ from app.schemas import (
     BidCreate,
     BidOut,
     BidResult,
+    BuyerDashboard,
     EventOut,
     Metrics,
     RfqCreate,
     RfqDetail,
     RfqSummary,
     SupplierCreate,
+    SupplierDashboard,
     SupplierOut,
 )
-from app.services import availability, bidding, rfq_service
+from app.services import availability, bidding, dashboard, rfq_service
 
 router = APIRouter(prefix="/api")
 # Everything except /health needs a signed-in user; writes are additionally role-checked.
@@ -90,6 +92,16 @@ async def submit_bid(rfq_id: int, body: BidCreate, db: Session = Depends(get_db)
 @authed.get("/rfqs/{rfq_id}/activity", response_model=list[EventOut], tags=["rfqs"])
 def activity(rfq_id: int, db: Session = Depends(get_db)):
     return rfq_service.rfq_activity(db, rfq_id)
+
+
+@authed.get("/dashboard/buyer", response_model=BuyerDashboard, tags=["dashboard"])
+def buyer_dashboard(db: Session = Depends(get_db), buyer: User = Depends(require_buyer)):
+    return dashboard.buyer_dashboard(db, buyer.id)
+
+
+@authed.get("/dashboard/supplier", response_model=SupplierDashboard, tags=["dashboard"])
+def supplier_dashboard(db: Session = Depends(get_db), supplier: User = Depends(require_supplier)):
+    return dashboard.supplier_dashboard(db, supplier.supplier_id)
 
 
 @authed.get("/metrics", response_model=Metrics, tags=["meta"])

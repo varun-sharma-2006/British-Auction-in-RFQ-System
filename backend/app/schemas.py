@@ -236,3 +236,56 @@ class Metrics(BaseModel):
     avg_price_improvement_pct: float | None          # opening L1 -> current L1, all auctions with bids
     avg_improvement_extended_pct: float | None
     avg_improvement_not_extended_pct: float | None
+
+
+# ---------- Dashboards ----------
+
+class DashboardEvent(BaseModel):
+    id: int
+    rfq_id: int
+    rfq_name: str
+    reference_id: str
+    event_type: EventType
+    occurred_at: datetime
+    message: str
+    reason: str | None
+
+
+class BuyerRfqRow(RfqSummary):
+    best_opening: Decimal | None      # lowest *first* quote across suppliers
+    savings_amount: Decimal | None    # best opening - current L1: what competition has saved so far
+    savings_pct: float | None
+
+
+class BuyerDashboard(BaseModel):
+    total_rfqs: int
+    active: int
+    scheduled: int
+    bids_received: int
+    extensions: int
+    savings_total: Decimal
+    avg_savings_pct: float | None
+    rfqs: list[BuyerRfqRow]
+    activity: list[DashboardEvent]
+
+
+class SupplierAuctionRow(RfqSummary):
+    my_rank: int
+    my_rank_label: str
+    my_best: Decimal
+    my_bid_count: int
+    l1_total: Decimal
+    gap_to_l1: Decimal                # 0 when I'm L1
+    position: str                     # LEADING | OUTBID (live)  ·  WON | LOST (finished)
+
+
+class SupplierDashboard(BaseModel):
+    participating: int
+    leading: int
+    outbid: int
+    won: int
+    lost: int
+    open_to_join: int
+    my_auctions: list[SupplierAuctionRow]
+    open_auctions: list[RfqSummary]
+    activity: list[DashboardEvent]

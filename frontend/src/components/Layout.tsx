@@ -19,7 +19,8 @@ export function Layout() {
             <span>RFQ Auctions</span>
           </NavLink>
           <nav className="nav">
-            <NavLink to="/" end>Auctions</NavLink>
+            <NavLink to="/" end>Dashboard</NavLink>
+            <NavLink to="/auctions">All auctions</NavLink>
             {isBuyer && <NavLink to="/rfqs/new">Create RFQ</NavLink>}
             {isBuyer && <NavLink to="/suppliers">Suppliers</NavLink>}
           </nav>

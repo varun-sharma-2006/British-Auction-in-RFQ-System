@@ -50,7 +50,7 @@ export function AuctionDetailPage() {
 
   return (
     <>
-      <div className="crumbs"><Link to="/">← All auctions</Link></div>
+      <div className="crumbs"><Link to="/">← Dashboard</Link> · <Link to="/auctions">All auctions</Link></div>
 
       <div className="page-head detail-head">
         <div>

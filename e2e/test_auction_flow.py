@@ -48,7 +48,7 @@ def shot(page: Page, name: str) -> None:
 def sign_in_as(page: Page, demo_label: str) -> None:
     page.goto(f"{BASE}/login")
     page.get_by_role("button", name=re.compile(demo_label)).click()
-    expect(page.get_by_role("heading", name="British Auctions")).to_be_visible()
+    expect(page.get_by_role("heading", name=re.compile("dashboard"))).to_be_visible()
 
 
 def local(dt: datetime) -> str:
@@ -123,3 +123,11 @@ def test_buyer_creates_auction_supplier_bid_extends_it_live(browser: Browser):
     expect(buyer.get_by_text("You're signed in as the buyer")).to_be_visible()
     assert buyer.locator('.kv dt:text-is("Current bid close") + dd').inner_text() != original_close   # close time moved
     shot(buyer, "buyer-view")
+
+    # --- Role-specific dashboards ---
+    supplier.goto(f"{BASE}/")
+    row = supplier.locator("tr", has_text=name)
+    expect(row.locator(".pos")).to_have_text("Leading")
+    shot(supplier, "supplier-dashboard")
+    buyer.goto(f"{BASE}/")
+    expect(buyer.locator("tr", has_text=name)).to_contain_text("Gati Express")   # L1 shown on the buyer's RFQ row

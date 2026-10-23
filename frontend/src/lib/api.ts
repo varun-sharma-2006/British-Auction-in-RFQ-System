@@ -166,6 +166,59 @@ export interface BidInput {
   remarks?: string;
 }
 
+export interface DashboardEvent {
+  id: number;
+  rfq_id: number;
+  rfq_name: string;
+  reference_id: string;
+  event_type: EventType;
+  occurred_at: string;
+  message: string;
+  reason: string | null;
+}
+
+export interface BuyerRfqRow extends RfqSummary {
+  best_opening: Money | null;
+  savings_amount: Money | null;
+  savings_pct: number | null;
+}
+
+export interface BuyerDashboard {
+  total_rfqs: number;
+  active: number;
+  scheduled: number;
+  bids_received: number;
+  extensions: number;
+  savings_total: Money;
+  avg_savings_pct: number | null;
+  rfqs: BuyerRfqRow[];
+  activity: DashboardEvent[];
+}
+
+export type Position = "LEADING" | "OUTBID" | "WON" | "LOST";
+
+export interface SupplierAuctionRow extends RfqSummary {
+  my_rank: number;
+  my_rank_label: string;
+  my_best: Money;
+  my_bid_count: number;
+  l1_total: Money;
+  gap_to_l1: Money;
+  position: Position;
+}
+
+export interface SupplierDashboard {
+  participating: number;
+  leading: number;
+  outbid: number;
+  won: number;
+  lost: number;
+  open_to_join: number;
+  my_auctions: SupplierAuctionRow[];
+  open_auctions: RfqSummary[];
+  activity: DashboardEvent[];
+}
+
 export type AvailabilityKind = "email" | "company" | "reference-id";
 
 export interface Availability {
@@ -228,6 +281,8 @@ export const api = {
   createSupplier: (name: string, contact_email?: string) =>
     request<Supplier>("/suppliers", { method: "POST", body: JSON.stringify({ name, contact_email }) }),
   metrics: () => request<Metrics>("/metrics"),
+  buyerDashboard: () => request<BuyerDashboard>("/dashboard/buyer"),
+  supplierDashboard: () => request<SupplierDashboard>("/dashboard/supplier"),
   availability: (kind: AvailabilityKind, value: string) =>
     request<Availability>(`/availability/${kind}?value=${encodeURIComponent(value)}`),
 };

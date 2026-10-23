@@ -32,7 +32,7 @@ def capture(page: Page, name: str, hold_ms: int = 2200, full_page: bool = False,
 def sign_in(page: Page, label: str) -> None:
     page.goto(f"{BASE}/login")
     page.get_by_role("button", name=re.compile(label)).click()
-    expect(page.get_by_role("heading", name="British Auctions")).to_be_visible()
+    expect(page.get_by_role("heading", name=re.compile("dashboard"))).to_be_visible()
 
 
 def main() -> None:
@@ -46,7 +46,10 @@ def main() -> None:
         capture(buyer, "login", keep=True)
 
         sign_in(buyer, "Buyer")
-        capture(buyer, "listing", hold_ms=3000, keep=True)
+        capture(buyer, "buyer-dashboard", hold_ms=3000, keep=True)
+        buyer.get_by_role("link", name="All auctions").first.click()
+        expect(buyer.get_by_role("heading", name="British Auctions")).to_be_visible()
+        capture(buyer, "listing", hold_ms=2500, keep=True)
 
         buyer.get_by_role("link", name=re.compile("Chennai")).click()
         expect(buyer.get_by_text("Force closed at")).to_be_visible()
@@ -71,8 +74,9 @@ def main() -> None:
         rfq_url = buyer.url
 
         # Two suppliers bid inside the window. Both change the L1 (the first bid creates one), so both extend.
+        pages = {}
         for label, freight, shot in (("BlueDart", "52000", None), ("Gati", "49500", "supplier-bid")):
-            sup = browser.new_context(**light).new_page()
+            sup = pages[label] = browser.new_context(**light).new_page()
             sign_in(sup, label)
             sup.goto(rfq_url)
             form = sup.locator(".bid-card")
@@ -92,6 +96,12 @@ def main() -> None:
         # The buyer's screen updated live (WebSocket).
         expect(buyer.get_by_text(re.compile("Auction extended: now closes at"))).to_be_visible()
         capture(buyer, "buyer-live-update", hold_ms=4000)
+
+        # BlueDart's dashboard now flags that it was outbid.
+        bluedart = pages["BlueDart"]
+        bluedart.goto(f"{BASE}/")
+        expect(bluedart.locator(".outbid-banner")).to_be_visible()
+        capture(bluedart, "supplier-dashboard", hold_ms=4000, keep=True)
         browser.close()
 
     images = []

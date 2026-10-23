@@ -6,6 +6,7 @@ import { AuthProvider, RequireAuth } from "./lib/auth";
 import { AuctionDetailPage } from "./pages/AuctionDetail";
 import { AuctionListPage } from "./pages/AuctionList";
 import { CreateRfqPage } from "./pages/CreateRfq";
+import { DashboardPage } from "./pages/Dashboard";
 import { LoginPage } from "./pages/Login";
 import { RegisterPage } from "./pages/Register";
 import { SuppliersPage } from "./pages/Suppliers";
@@ -19,7 +20,8 @@ createRoot(document.getElementById("root")!).render(
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
           <Route element={<RequireAuth><Layout /></RequireAuth>}>
-            <Route index element={<AuctionListPage />} />
+            <Route index element={<DashboardPage />} />
+            <Route path="auctions" element={<AuctionListPage />} />
             <Route path="rfqs/new" element={<RequireAuth role="BUYER"><CreateRfqPage /></RequireAuth>} />
             <Route path="rfqs/:id" element={<AuctionDetailPage />} />
             <Route path="suppliers" element={<RequireAuth role="BUYER"><SuppliersPage /></RequireAuth>} />

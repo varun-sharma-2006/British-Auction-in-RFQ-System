@@ -314,3 +314,32 @@ textarea { resize: vertical; }
 .avail.ok { color: var(--good); }
 .avail.taken { color: var(--warn); }
 .avail-how { font-weight: 400; color: var(--text-3); }
+
+/* ---------- dashboards ---------- */
+.pos { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.pos-leading { background: var(--good-soft); color: var(--good); }
+.pos-outbid { background: var(--warn-soft); color: var(--warn); }
+.pos-won { background: var(--good); color: #fff; }
+.pos-lost { background: var(--surface-2); color: var(--text-3); border: 1px solid var(--border); }
+.row-outbid td { background: color-mix(in srgb, var(--warn-soft) 45%, transparent); }
+.warn-text { color: var(--warn); font-weight: 600; }
+.outbid-banner { margin-bottom: 16px; }
+.join-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.join-card { display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid var(--border); border-radius: 9px; color: var(--text); background: var(--surface-2); }
+.join-card:hover { border-color: var(--primary); text-decoration: none; background: var(--primary-soft); }
+.join-top { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+.join-row { display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.join-card .meta { font-size: 12px; color: var(--text-3); }
+.join-card .chip { align-self: flex-start; }
+.feed { list-style: none; margin: 0; padding: 0; max-height: 640px; overflow-y: auto; }
+.feed li { padding: 9px 0; border-bottom: 1px dashed var(--border); font-size: 13px; }
+.feed li:last-child { border-bottom: none; }
+.feed-top { display: flex; justify-content: space-between; gap: 8px; }
+.feed-top time { font-size: 11.5px; color: var(--text-3); white-space: nowrap; }
+.feed-tag { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--primary); }
+.feed-auction_extended .feed-tag { color: var(--violet); }
+.feed-extension_capped .feed-tag { color: var(--warn); }
+.feed-auction_force_closed .feed-tag { color: var(--bad); }
+.feed-auction_closed .feed-tag, .feed-rfq_created .feed-tag, .feed-auction_started .feed-tag { color: var(--text-3); }
+.feed-rfq { display: block; font-weight: 600; color: var(--text); margin-top: 2px; }
+.feed-msg { color: var(--text-2); font-size: 12.5px; }
