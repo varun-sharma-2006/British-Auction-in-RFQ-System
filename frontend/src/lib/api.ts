@@ -219,6 +219,17 @@ export interface SupplierDashboard {
   activity: DashboardEvent[];
 }
 
+export interface SystemInfo {
+  mode: "serverless" | "replicas" | "single";
+  load_balancer: string;
+  instance: string;
+  live_updates: string;
+  auction_closer: string;
+  bloom_filter: string;
+  demo_refresh: boolean;
+  server_time: string;
+}
+
 export type AvailabilityKind = "email" | "company" | "reference-id";
 
 export interface Availability {
@@ -281,6 +292,7 @@ export const api = {
   createSupplier: (name: string, contact_email?: string) =>
     request<Supplier>("/suppliers", { method: "POST", body: JSON.stringify({ name, contact_email }) }),
   metrics: () => request<Metrics>("/metrics"),
+  system: () => request<SystemInfo>("/system"),
   buyerDashboard: () => request<BuyerDashboard>("/dashboard/buyer"),
   supplierDashboard: () => request<SupplierDashboard>("/dashboard/supplier"),
   availability: (kind: AvailabilityKind, value: string) =>

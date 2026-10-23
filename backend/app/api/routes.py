@@ -6,6 +6,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app import clock
 from app.api.deps import current_user, require_buyer, require_supplier
+from app.config import get_settings
 from app.db import get_db
 from app.errors import DomainError
 from app.models import AuctionStatus, Supplier, User
@@ -35,6 +36,33 @@ authed = APIRouter(prefix="/api", dependencies=[Depends(current_user)])
 def health():
     from app.main import INSTANCE  # which replica answered: useful behind the load balancer
     return {"status": "ok", "server_time": clock.utcnow(), "instance": INSTANCE}
+
+
+@router.get("/system", tags=["meta"])
+def system():
+    """How this deployment is wired: shown on the UI's System page next to a live load-balancing test."""
+    import os
+
+    from app.main import INSTANCE
+    s = get_settings()
+    if os.environ.get("VERCEL") == "1":
+        mode, balancer = "serverless", "Vercel edge network: autoscaled function instances"
+    elif s.redis_url:
+        mode, balancer = "replicas", "nginx (least_conn) in front of several API replicas"
+    else:
+        mode, balancer = "single", "none: one API process"
+    return {
+        "mode": mode,
+        "load_balancer": balancer,
+        "instance": INSTANCE,
+        "live_updates": "Redis pub/sub across replicas" if s.redis_url else "in-process WebSocket fan-out",
+        "auction_closer": ("Celery beat + worker" if s.redis_url and not s.run_closer
+                           else "on incoming requests (serverless)" if s.close_on_request
+                           else "in-process background task"),
+        "bloom_filter": "Redis bitmap (shared)" if s.redis_url else "in-memory per instance",
+        "demo_refresh": s.seed_demo,
+        "server_time": clock.utcnow(),
+    }
 
 
 # ---------- suppliers ----------

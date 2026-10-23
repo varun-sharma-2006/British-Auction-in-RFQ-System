@@ -10,6 +10,7 @@ import { DashboardPage } from "./pages/Dashboard";
 import { LoginPage } from "./pages/Login";
 import { RegisterPage } from "./pages/Register";
 import { SuppliersPage } from "./pages/Suppliers";
+import { SystemPage } from "./pages/System";
 import "./styles.css";
 
 createRoot(document.getElementById("root")!).render(
@@ -25,6 +26,7 @@ createRoot(document.getElementById("root")!).render(
             <Route path="rfqs/new" element={<RequireAuth role="BUYER"><CreateRfqPage /></RequireAuth>} />
             <Route path="rfqs/:id" element={<AuctionDetailPage />} />
             <Route path="suppliers" element={<RequireAuth role="BUYER"><SuppliersPage /></RequireAuth>} />
+            <Route path="system" element={<SystemPage />} />
             <Route path="*" element={<div className="card"><h2>Page not found</h2></div>} />
           </Route>
         </Routes>

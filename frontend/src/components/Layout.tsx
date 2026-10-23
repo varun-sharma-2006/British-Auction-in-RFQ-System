@@ -1,4 +1,4 @@
-import { Gavel, LayoutDashboard, LogOut, PlusCircle, Truck } from "lucide-react";
+import { Gavel, LayoutDashboard, LogOut, Network, PlusCircle, Truck } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { useConnectionStatus } from "../lib/hooks";
@@ -25,6 +25,7 @@ export function Layout() {
           <NavLink to="/auctions"><Gavel size={18} /> <span>All auctions</span></NavLink>
           {isBuyer && <NavLink to="/rfqs/new"><PlusCircle size={18} /> <span>Create RFQ</span></NavLink>}
           {isBuyer && <NavLink to="/suppliers"><Truck size={18} /> <span>Suppliers</span></NavLink>}
+          <NavLink to="/system"><Network size={18} /> <span>System</span></NavLink>
         </nav>
 
         <div className="sidebar-foot">

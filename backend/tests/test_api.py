@@ -243,3 +243,10 @@ def test_websocket_receives_bid_notification(client, suppliers):
         bid(client, rfq["id"], suppliers["Alpha"], 1000)
         assert ws.receive_json() == {"type": "rfq_updated", "rfq_id": rfq["id"], "reason": "bid"}
 
+
+
+def test_system_endpoint_describes_the_deployment(client, monkeypatch):
+    body = client.get("/api/system").json()
+    assert body["mode"] == "single" and body["instance"] and body["bloom_filter"] == "in-memory per instance"
+    monkeypatch.setenv("VERCEL", "1")
+    assert client.get("/api/system").json()["mode"] == "serverless"
