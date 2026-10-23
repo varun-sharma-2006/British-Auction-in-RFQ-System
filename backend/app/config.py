@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,6 +14,23 @@ class Settings(BaseSettings):
     run_closer: bool = True
     # Set to enable Redis pub/sub fan-out (multiple API replicas) and the Celery broker.
     redis_url: str | None = None
+
+    # Directory of the built frontend (frontend/dist). When set, the API also serves the SPA: one URL, one container.
+    frontend_dist: str | None = None
+
+    @field_validator("database_url")
+    @classmethod
+    def use_psycopg_driver(cls, v: str) -> str:
+        # Hosted Postgres (Render, Neon, Heroku) hands out postgres:// URLs; SQLAlchemy needs the driver named.
+        for prefix in ("postgres://", "postgresql://"):
+            if v.startswith(prefix):
+                return "postgresql+psycopg://" + v[len(prefix):]
+        return v
+
+    @field_validator("redis_url", "frontend_dist")
+    @classmethod
+    def empty_is_none(cls, v: str | None) -> str | None:
+        return v or None
 
     # Auth. Override JWT_SECRET in every real deployment.
     jwt_secret: str = "dev-only-change-me-please-32-bytes!!"

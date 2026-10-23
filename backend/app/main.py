@@ -1,11 +1,13 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api import auth
 from app.api.routes import authed, router, ws_router
@@ -64,3 +66,22 @@ app.include_router(auth.router)
 app.include_router(router)
 app.include_router(authed)
 app.include_router(ws_router)
+
+
+def mount_frontend(dist: Path) -> None:
+    """Serve the built React app: real files when they exist, index.html for client-side routes."""
+    root = dist.resolve()
+    app.mount("/assets", StaticFiles(directory=root / "assets"), name="assets")
+
+    @app.get("/{path:path}", include_in_schema=False)
+    def spa(path: str):
+        if path.startswith(("api/", "ws")):
+            raise HTTPException(404)
+        candidate = (root / path).resolve()
+        if path and candidate.is_file() and root in candidate.parents:   # no path traversal out of dist
+            return FileResponse(candidate)
+        return FileResponse(root / "index.html")
+
+
+if settings.frontend_dist and (Path(settings.frontend_dist) / "index.html").exists():
+    mount_frontend(Path(settings.frontend_dist))

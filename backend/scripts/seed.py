@@ -57,7 +57,7 @@ def _ensure_user(db, email, full_name, role, supplier_id):
     return user
 
 
-def run(reset: bool) -> None:
+def run(reset: bool, if_empty: bool = False) -> None:
     real_now = datetime.now(UTC).replace(second=0, microsecond=0)
     sim = SimClock(real_now)
     real_utcnow = clock.utcnow
@@ -65,6 +65,9 @@ def run(reset: bool) -> None:
 
     try:
         with SessionLocal() as db:
+            if if_empty and db.execute(select(Rfq.id).limit(1)).first():
+                print("Database already has data; skipping demo seed.")
+                return
             if reset:
                 for model in (AuctionEvent, Bid, Rfq, User, Supplier):
                     db.execute(delete(model))
@@ -175,4 +178,6 @@ def run(reset: bool) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--reset", action="store_true", help="delete all existing data first")
-    run(parser.parse_args().reset)
+    parser.add_argument("--if-empty", action="store_true", help="only seed a database that has no RFQs yet")
+    args = parser.parse_args()
+    run(args.reset, args.if_empty)
