@@ -36,7 +36,7 @@ def live_status(rfq: Rfq, now: datetime | None = None) -> AuctionStatus:
 
 # ---------- create ----------
 
-def create_rfq(db: Session, data: RfqCreate) -> Rfq:
+def create_rfq(db: Session, data: RfqCreate, created_by_id: int | None = None) -> Rfq:
     now = clock.utcnow()
     if data.bid_close_at <= now:
         raise DomainError(422, "Bid Close Time must be in the future")
@@ -57,6 +57,7 @@ def create_rfq(db: Session, data: RfqCreate) -> Rfq:
         trigger_window_minutes=data.trigger_window_minutes,
         extension_minutes=data.extension_minutes,
         trigger_type=data.trigger_type,
+        created_by_id=created_by_id,
     )
     rfq.status = live_status(rfq, now)
     db.add(rfq)

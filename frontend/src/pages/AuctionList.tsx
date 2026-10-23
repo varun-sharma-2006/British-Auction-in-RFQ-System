@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Card, Countdown, Empty, ErrorBox, Spinner, Stat, StatusBadge } from "../components/common";
 import { api, type AuctionStatus, type Metrics, type RfqSummary } from "../lib/api";
 import { TRIGGER_INFO, dateTime, money } from "../lib/format";
+import { useAuth } from "../lib/auth";
 import { useAsync, useLiveUpdates, usePolling } from "../lib/hooks";
 
 const FILTERS: { key: AuctionStatus | "ALL"; label: string }[] = [
@@ -17,6 +18,7 @@ const pct = (v: number | null) => (v === null ? "—" : `${v.toFixed(2)}%`);
 
 export function AuctionListPage() {
   const navigate = useNavigate();
+  const isBuyer = useAuth().user?.role === "BUYER";
   const [filter, setFilter] = useState<AuctionStatus | "ALL">("ALL");
   const rfqs = useAsync<RfqSummary[]>(() => api.listRfqs(), []);
   const metrics = useAsync<Metrics>(() => api.metrics(), []);
@@ -40,7 +42,7 @@ export function AuctionListPage() {
           <h1>British Auctions</h1>
           <p className="sub">Live RFQ auctions with automatic time extension and forced close.</p>
         </div>
-        <Link to="/rfqs/new" className="btn btn-primary">+ Create RFQ</Link>
+        {isBuyer && <Link to="/rfqs/new" className="btn btn-primary">+ Create RFQ</Link>}
       </div>
 
       {m && (
@@ -82,7 +84,7 @@ export function AuctionListPage() {
           <Spinner />
         ) : rows.length === 0 ? (
           <Empty title={filter === "ALL" ? "No auctions yet" : "Nothing here"}>
-            {filter === "ALL" && <Link to="/rfqs/new">Create the first RFQ</Link>}
+            {filter === "ALL" && isBuyer && <Link to="/rfqs/new">Create the first RFQ</Link>}
           </Empty>
         ) : (
           <div className="table-wrap">

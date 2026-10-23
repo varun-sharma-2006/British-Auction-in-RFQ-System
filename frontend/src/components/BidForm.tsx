@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { api, type RfqDetail, type Supplier } from "../lib/api";
+import { api, type RfqDetail } from "../lib/api";
 import { money, toLocalInput } from "../lib/format";
-import { useAsync, useNow, usePersona } from "../lib/hooks";
+import { useAuth } from "../lib/auth";
+import { useNow } from "../lib/hooks";
 import { Card, ErrorBox } from "./common";
 
 const blank = () => ({
@@ -15,22 +16,20 @@ const blank = () => ({
 });
 
 export function BidForm({ rfq, onPlaced }: { rfq: RfqDetail; onPlaced: () => void }) {
-  const { persona, setPersona } = usePersona();
-  const { data: suppliers } = useAsync<Supplier[]>(() => api.suppliers(), []);
+  const { user } = useAuth();
   const [f, setF] = useState(blank);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const now = useNow();
 
-  const supplierId = persona.role === "supplier" ? persona.supplierId : undefined;
-  const supplier = suppliers?.find((s) => s.id === supplierId);
+  const supplierId = user?.role === "SUPPLIER" ? user.supplier_id ?? undefined : undefined;
   const mine = rfq.ranking.find((q) => q.supplier_id === supplierId);
   const l1 = rfq.ranking[0];
 
   // Pre-fill carrier from this supplier's last quote so re-bidding is quick.
   useEffect(() => {
-    setF((prev) => ({ ...blank(), carrier_name: mine?.carrier_name ?? supplier?.name ?? prev.carrier_name }));
+    setF((prev) => ({ ...blank(), carrier_name: mine?.carrier_name ?? user?.supplier_name ?? prev.carrier_name }));
     setResult(null);
     setError(null);
   }, [supplierId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -71,7 +70,6 @@ export function BidForm({ rfq, onPlaced }: { rfq: RfqDetail; onPlaced: () => voi
     setResult(null);
     try {
       const res = await api.submitBid(rfq.id, {
-        supplier_id: supplierId,
         carrier_name: f.carrier_name.trim(),
         freight_charges: f.freight_charges || "0",
         origin_charges: f.origin_charges || "0",
@@ -103,19 +101,16 @@ export function BidForm({ rfq, onPlaced }: { rfq: RfqDetail; onPlaced: () => voi
           {rfq.status === "SCHEDULED" ? "Bidding has not opened yet." : "This auction is closed. No more bids are accepted."}
         </p>
       ) : !supplierId ? (
-        <div className="field">
-          <span className="label">You are acting as the buyer. Choose a supplier to bid as:</span>
-          <select defaultValue="" onChange={(e) => e.target.value && setPersona({ role: "supplier", supplierId: Number(e.target.value) })}>
-            <option value="" disabled>Select supplier…</option>
-            {suppliers?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-        </div>
+        <p className="muted">
+          You're signed in as the buyer. Suppliers submit quotes from their own accounts. Sign in as a demo supplier
+          (e.g. <span className="mono">gati@demo.com</span>) in another browser to bid against each other live.
+        </p>
       ) : (
         <form onSubmit={submit} className="bid-form">
           <div className="position">
             <div>
               <span className="muted small">Bidding as</span>
-              <div className="strong">{supplier?.name ?? `Supplier #${supplierId}`}</div>
+              <div className="strong">{user?.supplier_name}</div>
             </div>
             <div className="right">
               <span className="muted small">Your position</span>

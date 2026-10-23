@@ -2,15 +2,51 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
-from app.models import AuctionStatus, EventType, TriggerType
+from app.models import AuctionStatus, EventType, TriggerType, UserRole
 
 Money = Annotated[Decimal, Field(ge=0, max_digits=14, decimal_places=2)]
 
 
 class ORM(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+
+
+# ---------- Auth ----------
+
+class RegisterIn(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+    full_name: str = Field(min_length=2, max_length=120)
+    role: UserRole
+    company_name: str | None = Field(default=None, min_length=2, max_length=120)
+
+    @model_validator(mode="after")
+    def supplier_needs_company(self) -> "RegisterIn":
+        if self.role == UserRole.SUPPLIER and not self.company_name:
+            raise ValueError("Supplier accounts need a company name")
+        return self
+
+
+class LoginIn(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class UserOut(ORM):
+    id: int
+    email: str
+    full_name: str
+    role: UserRole
+    supplier_id: int | None
+    supplier_name: str | None = None
+
+
+class TokenOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserOut
 
 
 # ---------- Suppliers ----------
@@ -113,7 +149,7 @@ class RfqSummary(ORM):
 
 
 class BidCreate(BaseModel):
-    supplier_id: int
+    # No supplier_id: the bidding supplier is taken from the access token, so nobody can bid as someone else.
     carrier_name: str = Field(min_length=2, max_length=120)
     freight_charges: Money
     origin_charges: Money = Decimal("0")

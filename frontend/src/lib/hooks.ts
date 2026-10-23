@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 // ---------- live updates over WebSocket ----------
 
@@ -130,36 +130,4 @@ export function usePolling(fn: () => void, ms: number) {
     }, ms);
     return () => clearInterval(id);
   }, [ms]);
-}
-
-// ---------- "acting as" persona (buyer or a supplier) ----------
-
-export interface Persona {
-  role: "buyer" | "supplier";
-  supplierId?: number;
-}
-
-export const PersonaContext = createContext<{ persona: Persona; setPersona: (p: Persona) => void }>({
-  persona: { role: "buyer" },
-  setPersona: () => {},
-});
-
-export const usePersona = () => useContext(PersonaContext);
-
-export function loadPersona(): Persona {
-  try {
-    const raw = localStorage.getItem("persona");
-    if (raw) return JSON.parse(raw);
-  } catch {
-    /* storage unavailable */
-  }
-  return { role: "buyer" };
-}
-
-export function savePersona(p: Persona) {
-  try {
-    localStorage.setItem("persona", JSON.stringify(p));
-  } catch {
-    /* storage unavailable */
-  }
 }

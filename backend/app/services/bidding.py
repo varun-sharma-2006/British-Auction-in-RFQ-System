@@ -19,7 +19,7 @@ from app.services.auction_engine import Standing, apply_bid, evaluate_extension,
 from app.services.rfq_service import _rfq_bids, _standings, bid_out, sync_status
 
 
-def submit_bid(db: Session, rfq_id: int, data: BidCreate) -> BidResult:
+def submit_bid(db: Session, rfq_id: int, supplier_id: int, data: BidCreate) -> BidResult:
     rfq = db.execute(select(Rfq).where(Rfq.id == rfq_id).with_for_update()).scalar_one_or_none()
     if rfq is None:
         raise DomainError(404, f"RFQ {rfq_id} not found")
@@ -33,9 +33,9 @@ def submit_bid(db: Session, rfq_id: int, data: BidCreate) -> BidResult:
     if rfq.status in (AuctionStatus.CLOSED, AuctionStatus.FORCE_CLOSED):
         raise DomainError(409, "This auction is closed; no more bids are accepted")
 
-    supplier = db.get(Supplier, data.supplier_id)
+    supplier = db.get(Supplier, supplier_id)
     if supplier is None:
-        raise DomainError(404, f"Supplier {data.supplier_id} not found")
+        raise DomainError(404, f"Supplier {supplier_id} not found")
     if data.quote_validity_date < date.today():
         raise DomainError(422, "Quote validity date cannot be in the past")
 

@@ -7,7 +7,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import router, ws_router
+from app.api import auth
+from app.api.routes import authed, router, ws_router
 from app.config import get_settings
 from app.errors import DomainError
 from app.services.closer import run_closer
@@ -55,5 +56,7 @@ async def validation_error_handler(_: Request, exc: RequestValidationError):
     return JSONResponse(status_code=422, content={"detail": "; ".join(messages), "errors": fields})
 
 
+app.include_router(auth.router)
 app.include_router(router)
+app.include_router(authed)
 app.include_router(ws_router)

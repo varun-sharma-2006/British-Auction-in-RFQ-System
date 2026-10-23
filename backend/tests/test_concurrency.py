@@ -13,13 +13,13 @@ from app.errors import DomainError
 from app.models import AuctionEvent, Bid, EventType, Rfq, Supplier
 from app.schemas import BidCreate
 from app.services.bidding import submit_bid
-from tests.conftest import at, make_rfq
+from tests.conftest import add_supplier, at, make_rfq
 
 pytestmark = pytest.mark.skipif(engine.dialect.name != "postgresql", reason="needs PostgreSQL row locking")
 
 
-def _quote(supplier_id: int, total: int) -> BidCreate:
-    return BidCreate(supplier_id=supplier_id, carrier_name="Race Carrier", freight_charges=Decimal(total),
+def _quote(total: int) -> BidCreate:
+    return BidCreate(carrier_name="Race Carrier", freight_charges=Decimal(total),
                      transit_time_days=2, quote_validity_date="2099-01-01")
 
 
@@ -47,10 +47,10 @@ def _fire_simultaneously(jobs):
 def test_simultaneous_last_second_bids_extend_exactly_once_each_and_never_pass_forced_close(client, frozen):
     # close at +60, forced at +65, X=10, Y=1: room for exactly 5 one-minute extensions.
     rfq = make_rfq(client, close=60, forced=65, x=10, y=1, trigger="BID_RECEIVED")
-    ids = [client.post("/api/suppliers", json={"name": f"Racer {i}"}).json()["id"] for i in range(8)]
+    ids = [add_supplier(client, f"Racer{i} Freight") for i in range(8)]
     frozen.set(at(59))  # everybody bids one minute before close, at the same instant
 
-    results, errors = _fire_simultaneously([lambda db, s=s, i=i: submit_bid(db, rfq["id"], _quote(s, 1000 - i))
+    results, errors = _fire_simultaneously([lambda db, s=s, i=i: submit_bid(db, rfq["id"], s, _quote(1000 - i))
                                             for i, s in enumerate(ids)])
 
     assert not errors and len(results) == 8
@@ -72,9 +72,9 @@ def test_simultaneous_last_second_bids_extend_exactly_once_each_and_never_pass_f
 
 def test_same_supplier_double_submit_is_serialised(client, frozen):
     rfq = make_rfq(client)
-    sid = client.post("/api/suppliers", json={"name": "Double Clicker"}).json()["id"]
+    sid = add_supplier(client, "Double Clicker")
 
-    results, errors = _fire_simultaneously([lambda db: submit_bid(db, rfq["id"], _quote(sid, 900))] * 2)
+    results, errors = _fire_simultaneously([lambda db: submit_bid(db, rfq["id"], sid, _quote(900))] * 2)
 
     # The second request sees the first one's bid and is rejected: "you can only lower your price".
     assert len(results) == 1 and len(errors) == 1 and errors[0].status_code == 422

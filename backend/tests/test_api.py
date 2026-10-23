@@ -107,7 +107,6 @@ class TestBidding:
         assert bid(client, rfq["id"], suppliers["Alpha"], -5).status_code == 422
         assert bid(client, rfq["id"], suppliers["Alpha"], 0).status_code == 422
         assert bid(client, rfq["id"], suppliers["Alpha"], 100, quote_validity_date="2000-01-01").status_code == 422
-        assert bid(client, rfq["id"], 9999, 100).status_code == 404
         assert bid(client, 9999, suppliers["Alpha"], 100).status_code == 404
 
 

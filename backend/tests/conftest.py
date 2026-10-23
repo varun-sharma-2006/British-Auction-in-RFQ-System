@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 _SQLITE = "sqlite:///" + os.path.join(tempfile.gettempdir(), "british_auction_test.db")
 os.environ["DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL", _SQLITE)
 os.environ["RUN_CLOSER"] = "false"
+os.environ["PASSWORD_HASH_ITERATIONS"] = "1000"  # fast hashing in tests
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -44,18 +45,39 @@ def fresh_db():
     yield
 
 
+SUPPLIER_HEADERS: dict[int, dict] = {}   # supplier_id -> Authorization header of a user of that supplier
+
+
+def register(client, email, role="BUYER", company=None, password="secret-pass-1") -> dict:
+    res = client.post("/api/auth/register", json={"email": email, "password": password, "full_name": email.split("@")[0] + " User",
+                                                  "role": role, "company_name": company})
+    assert res.status_code == 201, res.text
+    return res.json()
+
+
+def auth(token_response: dict) -> dict:
+    return {"Authorization": f"Bearer {token_response['access_token']}"}
+
+
 @pytest.fixture
 def client(frozen) -> TestClient:
+    """A client signed in as a buyer. Supplier requests pass their own headers (see `bid`)."""
+    SUPPLIER_HEADERS.clear()
     with TestClient(app) as c:
+        c.headers.update(auth(register(c, "buyer@test.com")))
         yield c
+
+
+def add_supplier(client, name: str) -> int:
+    tok = register(client, f"{name.split()[0].lower()}@test.com", role="SUPPLIER", company=name)
+    sid = tok["user"]["supplier_id"]
+    SUPPLIER_HEADERS[sid] = auth(tok)
+    return sid
 
 
 @pytest.fixture
 def suppliers(client) -> dict[str, int]:
-    ids = {}
-    for name in ("Alpha Logistics", "Bravo Freight", "Charlie Cargo"):
-        ids[name.split()[0]] = client.post("/api/suppliers", json={"name": name}).json()["id"]
-    return ids
+    return {name.split()[0]: add_supplier(client, name) for name in ("Alpha Logistics", "Bravo Freight", "Charlie Cargo")}
 
 
 def at(minutes: float) -> datetime:
@@ -86,8 +108,8 @@ def make_rfq(client, *, start=-5, close=60, forced=90, x=10, y=5, trigger="BID_R
 
 
 def bid(client, rfq_id, supplier_id, freight, origin=0, dest=0, **extra):
+    """Submit a quote as a user of `supplier_id`."""
     body = {
-        "supplier_id": supplier_id,
         "carrier_name": "Test Carrier",
         "freight_charges": freight,
         "origin_charges": origin,
@@ -96,4 +118,4 @@ def bid(client, rfq_id, supplier_id, freight, origin=0, dest=0, **extra):
         "quote_validity_date": "2099-12-31",
         **extra,
     }
-    return client.post(f"/api/rfqs/{rfq_id}/bids", json=body)
+    return client.post(f"/api/rfqs/{rfq_id}/bids", json=body, headers=SUPPLIER_HEADERS[supplier_id])

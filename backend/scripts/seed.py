@@ -6,6 +6,11 @@ demo data was produced by the same engine the API uses.
 
     python -m scripts.seed            # adds demo data
     python -m scripts.seed --reset    # wipes all tables first
+
+Demo logins (password for all: demo1234):
+    buyer@demo.com                      buyer
+    bluedart@demo.com, delhivery@demo.com, gati@demo.com,
+    tci@demo.com, rivigo@demo.com, vrl@demo.com      suppliers
 """
 import argparse
 from datetime import date, datetime, timedelta, timezone
@@ -15,11 +20,14 @@ from sqlalchemy import delete, select
 
 from app import clock
 from app.db import SessionLocal
-from app.models import AuctionEvent, Bid, Rfq, Supplier, TriggerType
+from app.models import AuctionEvent, Bid, Rfq, Supplier, TriggerType, User, UserRole
 from app.schemas import BidCreate, RfqCreate
 from app.services.bidding import submit_bid
 from app.services.closer import close_due_auctions
 from app.services.rfq_service import create_rfq
+from app.security import hash_password
+
+DEMO_PASSWORD = "demo1234"
 
 SUPPLIERS = [
     ("BlueDart Logistics", "bids@bluedart.example"),
@@ -39,6 +47,16 @@ class SimClock:
         return self.t
 
 
+def _ensure_user(db, email, full_name, role, supplier_id):
+    user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+    if user is None:
+        user = User(email=email, full_name=full_name, role=role, supplier_id=supplier_id,
+                    password_hash=hash_password(DEMO_PASSWORD))
+        db.add(user)
+        db.flush()
+    return user
+
+
 def run(reset: bool) -> None:
     real_now = datetime.now(timezone.utc).replace(second=0, microsecond=0)
     sim = SimClock(real_now)
@@ -48,7 +66,7 @@ def run(reset: bool) -> None:
     try:
         with SessionLocal() as db:
             if reset:
-                for model in (AuctionEvent, Bid, Rfq, Supplier):
+                for model in (AuctionEvent, Bid, Rfq, User, Supplier):
                     db.execute(delete(model))
                 db.commit()
 
@@ -60,12 +78,15 @@ def run(reset: bool) -> None:
                     db.add(s)
                     db.flush()
                 sup[name.split()[0]] = s.id
+                _ensure_user(db, f"{name.split()[0].lower()}@demo.com", f"{name.split()[0]} Bid Desk",
+                             UserRole.SUPPLIER, s.id)
+            buyer = _ensure_user(db, "buyer@demo.com", "Priya Buyer", UserRole.BUYER, None)
             db.commit()
 
             def auction(t_create, *, name, start, close, forced, x=10, y=5, trigger=TriggerType.BID_RECEIVED,
                         origin, destination, british=True, desc=None):
                 sim.t = t_create
-                return create_rfq(db, RfqCreate(
+                return create_rfq(db, created_by_id=buyer.id, data=RfqCreate(
                     name=name, description=desc, origin=origin, destination=destination,
                     pickup_date=(close + timedelta(days=4)).date(),
                     bid_start_at=start, bid_close_at=close, forced_close_at=forced if british else None,
@@ -75,8 +96,8 @@ def run(reset: bool) -> None:
 
             def place(rfq, at, who, freight, origin_c, dest_c, carrier, transit, validity_days=30):
                 sim.t = at
-                submit_bid(db, rfq.id, BidCreate(
-                    supplier_id=sup[who], carrier_name=carrier, freight_charges=Decimal(freight),
+                submit_bid(db, rfq.id, sup[who], BidCreate(
+                    carrier_name=carrier, freight_charges=Decimal(freight),
                     origin_charges=Decimal(origin_c), destination_charges=Decimal(dest_c),
                     transit_time_days=transit, quote_validity_date=date.today() + timedelta(days=validity_days),
                 ))
@@ -146,7 +167,8 @@ def run(reset: bool) -> None:
         close_due_auctions()
     finally:
         clock.utcnow = real_utcnow
-    print("Seeded demo suppliers and 6 auctions (closed, force-closed, 3 active, 1 scheduled).")
+    print("Seeded 6 auctions (closed, force-closed, 3 active, 1 scheduled).")
+    print(f"Log in as buyer@demo.com or bluedart@demo.com / gati@demo.com / ... with password '{DEMO_PASSWORD}'.")
 
 
 if __name__ == "__main__":

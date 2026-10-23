@@ -131,8 +131,32 @@ export interface RfqCreateInput {
   trigger_type?: TriggerType;
 }
 
+export type Role = "BUYER" | "SUPPLIER";
+
+export interface User {
+  id: number;
+  email: string;
+  full_name: string;
+  role: Role;
+  supplier_id: number | null;
+  supplier_name: string | null;
+}
+
+export interface TokenResponse {
+  access_token: string;
+  token_type: string;
+  user: User;
+}
+
+export interface RegisterInput {
+  email: string;
+  password: string;
+  full_name: string;
+  role: Role;
+  company_name?: string;
+}
+
 export interface BidInput {
-  supplier_id: number;
   carrier_name: string;
   freight_charges: string;
   origin_charges: string;
@@ -150,22 +174,41 @@ export class ApiError extends Error {
 
 const BASE = import.meta.env.VITE_API_URL ?? "/api";
 
+// Set by the AuthProvider: where to read the token and what to do when the server says it's no longer valid.
+let getToken: () => string | null = () => null;
+let onUnauthorized: () => void = () => {};
+export function configureAuth(tokenGetter: () => string | null, unauthorized: () => void) {
+  getToken = tokenGetter;
+  onUnauthorized = unauthorized;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getToken();
   let res: Response;
   try {
     res = await fetch(`${BASE}${path}`, {
       ...init,
-      headers: { "Content-Type": "application/json", ...init?.headers },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...init?.headers,
+      },
     });
   } catch {
     throw new ApiError(0, "Cannot reach the server. Is the backend running?");
   }
   const body = await res.json().catch(() => null);
+  if (res.status === 401 && token && !path.startsWith("/auth/")) onUnauthorized();
   if (!res.ok) throw new ApiError(res.status, body?.detail ?? `Request failed (${res.status})`);
   return body as T;
 }
 
 export const api = {
+  login: (email: string, password: string) =>
+    request<TokenResponse>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+  register: (input: RegisterInput) =>
+    request<TokenResponse>("/auth/register", { method: "POST", body: JSON.stringify(input) }),
+  me: () => request<User>("/auth/me"),
   listRfqs: (status?: AuctionStatus) => request<RfqSummary[]>(`/rfqs${status ? `?status=${status}` : ""}`),
   getRfq: (id: number) => request<RfqDetail>(`/rfqs/${id}`),
   createRfq: (input: RfqCreateInput) => request<RfqDetail>("/rfqs", { method: "POST", body: JSON.stringify(input) }),

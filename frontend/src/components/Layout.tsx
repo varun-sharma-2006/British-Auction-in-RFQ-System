@@ -1,13 +1,11 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { api, type Supplier } from "../lib/api";
-import { useAsync, useConnectionStatus, usePersona } from "../lib/hooks";
+import { useAuth } from "../lib/auth";
+import { useConnectionStatus } from "../lib/hooks";
 
 export function Layout() {
   const live = useConnectionStatus();
-  const { persona, setPersona } = usePersona();
-  const { data: suppliers } = useAsync<Supplier[]>(() => api.suppliers(), []);
-
-  const value = persona.role === "buyer" ? "buyer" : String(persona.supplierId);
+  const { user, logout } = useAuth();
+  const isBuyer = user?.role === "BUYER";
 
   return (
     <div className="app">
@@ -22,31 +20,23 @@ export function Layout() {
           </NavLink>
           <nav className="nav">
             <NavLink to="/" end>Auctions</NavLink>
-            <NavLink to="/rfqs/new">Create RFQ</NavLink>
-            <NavLink to="/suppliers">Suppliers</NavLink>
+            {isBuyer && <NavLink to="/rfqs/new">Create RFQ</NavLink>}
+            {isBuyer && <NavLink to="/suppliers">Suppliers</NavLink>}
           </nav>
           <div className="topbar-right">
-            <label className="persona">
-              <span>Acting as</span>
-              <select
-                value={value}
-                onChange={(e) =>
-                  setPersona(e.target.value === "buyer" ? { role: "buyer" } : { role: "supplier", supplierId: Number(e.target.value) })
-                }
-              >
-                <option value="buyer">Buyer</option>
-                {suppliers && suppliers.length > 0 && (
-                  <optgroup label="Supplier">
-                    {suppliers.map((s) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
-            </label>
             <span className={`live ${live ? "on" : ""}`} title={live ? "Live updates connected" : "Reconnecting…"}>
               <i /> {live ? "Live" : "Offline"}
             </span>
+            {user && (
+              <div className="user">
+                <div className="user-text">
+                  <strong>{user.full_name}</strong>
+                  <span>{isBuyer ? "Buyer" : user.supplier_name}</span>
+                </div>
+                <span className={`chip ${isBuyer ? "" : "chip-supplier"}`}>{isBuyer ? "Buyer" : "Supplier"}</span>
+                <button className="btn btn-ghost btn-sm" onClick={logout}>Sign out</button>
+              </div>
+            )}
           </div>
         </div>
       </header>

@@ -59,6 +59,30 @@ class EventType(str, enum.Enum):
     AUCTION_FORCE_CLOSED = "AUCTION_FORCE_CLOSED"
 
 
+class UserRole(str, enum.Enum):
+    BUYER = "BUYER"
+    SUPPLIER = "SUPPLIER"
+
+
+class User(Base):
+    """A person who logs in. Supplier users act on behalf of one supplier company."""
+
+    __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint("role <> 'SUPPLIER' OR supplier_id IS NOT NULL", name="ck_user_supplier_has_company"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    email: Mapped[str] = mapped_column(String(254), unique=True, nullable=False)
+    full_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[UserRole] = mapped_column(_str_enum(UserRole, "user_role"), nullable=False)
+    supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=_now, nullable=False)
+
+    supplier: Mapped["Supplier | None"] = relationship()
+
+
 class Supplier(Base):
     __tablename__ = "suppliers"
 
@@ -98,6 +122,8 @@ class Rfq(Base):
     bid_close_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)       # original, never changes
     current_close_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)   # moves with extensions
     forced_close_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)    # hard ceiling
+
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))   # the buyer
 
     is_british_auction: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     trigger_window_minutes: Mapped[int | None] = mapped_column(Integer)   # X
