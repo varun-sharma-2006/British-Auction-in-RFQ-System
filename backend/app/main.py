@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
+from app import clock
 from app.api import auth
 from app.api import availability as availability_api
 from app.api.routes import authed, router, ws_router
@@ -21,7 +22,7 @@ from app.config import get_settings
 from app.db import SessionLocal
 from app.errors import DomainError
 from app.realtime import notify_rfq_changed, relay_from_redis
-from app.services import availability
+from app.services import availability, demo
 from app.services.closer import close_due_auctions, run_closer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -70,14 +71,36 @@ INSTANCE = settings.instance_name or f"{socket.gethostname()}:{os.getpid()}"
 @app.middleware("http")
 async def served_by(request: Request, call_next):
     """Tag every response with the replica that produced it (visible through the load balancer)."""
-    if settings.close_on_request and request.url.path.startswith("/api/"):
-        await close_due_opportunistically()
+    if request.url.path.startswith("/api/"):
+        if settings.close_on_request:
+            await close_due_opportunistically()
+        if settings.seed_demo:
+            await refresh_demo_opportunistically()
     response = await call_next(request)
     response.headers["X-Served-By"] = INSTANCE
     return response
 
 
 _last_close_check = 0.0
+_last_demo_check = 0.0
+
+
+async def refresh_demo_opportunistically() -> None:
+    """Demo deployments only (SEED_DEMO=true): top up live auctions at most once a minute per instance."""
+    global _last_demo_check
+    now = time.monotonic()
+    if now - _last_demo_check < settings.demo_refresh_every_seconds:
+        return
+    _last_demo_check = now
+
+    def refresh():
+        with SessionLocal() as db:
+            return demo.ensure_live_demo(db, clock.utcnow())
+
+    try:
+        await run_in_threadpool(refresh)
+    except Exception:
+        log.exception("Demo refresh failed")
 
 
 async def close_due_opportunistically() -> None:

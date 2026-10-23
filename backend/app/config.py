@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     # ... and treat an in-memory Bloom filter older than this as stale (rebuilt on the next check).
     bloom_max_age_seconds: float | None = None
 
+    # Demo deployments: keep live auctions available by starting a fresh set when fewer than two are open.
+    seed_demo: bool = False
+    demo_refresh_every_seconds: float = 60
+
     # Directory of the built frontend (frontend/dist). When set, the API also serves the SPA: one URL, one container.
     frontend_dist: str | None = None
 

@@ -6,7 +6,7 @@ other. Ranking-before / ranking-after are therefore exact, and two simultaneous
 last-second bids can never both read the same close time and double-extend it.
 Bids on *different* auctions don't contend at all.
 """
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -19,12 +19,14 @@ from app.services.auction_engine import Standing, apply_bid, evaluate_extension,
 from app.services.rfq_service import _rfq_bids, _standings, bid_out, sync_status
 
 
-def submit_bid(db: Session, rfq_id: int, supplier_id: int, data: BidCreate) -> BidResult:
+def submit_bid(db: Session, rfq_id: int, supplier_id: int, data: BidCreate,
+               now: datetime | None = None) -> BidResult:
+    """`now` is only passed explicitly when replaying demo history; real bids use the server clock."""
     rfq = db.execute(select(Rfq).where(Rfq.id == rfq_id).with_for_update()).scalar_one_or_none()
     if rfq is None:
         raise DomainError(404, f"RFQ {rfq_id} not found")
 
-    now = clock.utcnow()  # taken *after* acquiring the lock: this is the bid's official timestamp
+    now = now or clock.utcnow()  # taken *after* acquiring the lock: this is the bid's official timestamp
     if sync_status(db, rfq, now):
         db.commit()  # persist a start/close transition we just detected, whatever happens next
         rfq = db.execute(select(Rfq).where(Rfq.id == rfq_id).with_for_update()).scalar_one()

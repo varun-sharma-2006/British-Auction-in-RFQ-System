@@ -37,8 +37,8 @@ def live_status(rfq: Rfq, now: datetime | None = None) -> AuctionStatus:
 
 # ---------- create ----------
 
-def create_rfq(db: Session, data: RfqCreate, created_by_id: int | None = None) -> Rfq:
-    now = clock.utcnow()
+def create_rfq(db: Session, data: RfqCreate, created_by_id: int | None = None, now: datetime | None = None) -> Rfq:
+    now = now or clock.utcnow()
     if data.bid_close_at <= now:
         raise DomainError(422, "Bid Close Time must be in the future")
 
