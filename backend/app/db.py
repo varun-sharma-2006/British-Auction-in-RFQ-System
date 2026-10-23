@@ -47,7 +47,12 @@ def make_engine(url: str):
             dbapi_conn.execute("PRAGMA foreign_keys=ON")
 
         return engine
-    return create_engine(url, pool_pre_ping=True, pool_size=10, max_overflow=20)
+    # Behind a transaction-mode pooler (PgBouncer, e.g. Neon's "-pooler" host) a server-side prepared
+    # statement can land on a different backend connection, so turn psycopg's auto-prepare off there.
+    connect_args = {"prepare_threshold": None} if "pooler" in url else {}
+    # pool_recycle: serverless Postgres (Neon) suspends when idle and drops connections.
+    return create_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=10, pool_recycle=300,
+                         connect_args=connect_args)
 
 
 engine = make_engine(get_settings().database_url)
