@@ -1,0 +1,180 @@
+export type AuctionStatus = "SCHEDULED" | "ACTIVE" | "CLOSED" | "FORCE_CLOSED";
+export type TriggerType = "BID_RECEIVED" | "ANY_RANK_CHANGE" | "L1_CHANGE";
+export type EventType =
+  | "RFQ_CREATED"
+  | "AUCTION_STARTED"
+  | "BID_SUBMITTED"
+  | "AUCTION_EXTENDED"
+  | "EXTENSION_CAPPED"
+  | "AUCTION_CLOSED"
+  | "AUCTION_FORCE_CLOSED";
+
+// Money arrives as a decimal string to avoid float rounding on the wire.
+type Money = string;
+
+export interface Supplier {
+  id: number;
+  name: string;
+  contact_email: string | null;
+}
+
+export interface RfqSummary {
+  id: number;
+  reference_id: string;
+  name: string;
+  origin: string | null;
+  destination: string | null;
+  currency: string;
+  pickup_date: string;
+  bid_start_at: string;
+  bid_close_at: string;
+  current_close_at: string;
+  forced_close_at: string;
+  status: AuctionStatus;
+  is_british_auction: boolean;
+  trigger_type: TriggerType | null;
+  extension_count: number;
+  lowest_bid: Money | null;
+  lowest_bidder: string | null;
+  bid_count: number;
+  supplier_count: number;
+}
+
+export interface Bid {
+  id: number;
+  rfq_id: number;
+  supplier_id: number;
+  supplier_name: string;
+  revision: number;
+  carrier_name: string;
+  freight_charges: Money;
+  origin_charges: Money;
+  destination_charges: Money;
+  total_amount: Money;
+  transit_time_days: number;
+  quote_validity_date: string;
+  remarks: string | null;
+  created_at: string;
+}
+
+export interface RankedQuote extends Bid {
+  rank: number;
+  rank_label: string;
+  bid_count: number;
+  first_total: Money;
+}
+
+export interface RfqDetail extends RfqSummary {
+  description: string | null;
+  config: {
+    is_british_auction: boolean;
+    trigger_window_minutes: number | null;
+    extension_minutes: number | null;
+    trigger_type: TriggerType | null;
+  };
+  closed_at: string | null;
+  created_at: string;
+  ranking: RankedQuote[];
+  server_time: string;
+}
+
+export interface AuctionEvent {
+  id: number;
+  event_type: EventType;
+  occurred_at: string;
+  supplier_id: number | null;
+  supplier_name: string | null;
+  bid_id: number | null;
+  message: string;
+  reason: string | null;
+  previous_close_at: string | null;
+  new_close_at: string | null;
+  details: Record<string, unknown> | null;
+}
+
+export interface BidResult {
+  bid: Bid;
+  rank: number;
+  rank_label: string;
+  extended: boolean;
+  new_close_at: string;
+  extension_reason: string | null;
+}
+
+export interface Metrics {
+  total_auctions: number;
+  active_auctions: number;
+  total_bids: number;
+  avg_bids_per_rfq: number;
+  extended_auctions: number;
+  avg_bids_extended: number | null;
+  avg_bids_not_extended: number | null;
+  avg_price_improvement_pct: number | null;
+  avg_improvement_extended_pct: number | null;
+  avg_improvement_not_extended_pct: number | null;
+}
+
+export interface RfqCreateInput {
+  name: string;
+  reference_id?: string;
+  description?: string;
+  origin?: string;
+  destination?: string;
+  currency: string;
+  pickup_date: string;
+  bid_start_at: string;
+  bid_close_at: string;
+  forced_close_at?: string;
+  is_british_auction: boolean;
+  trigger_window_minutes?: number;
+  extension_minutes?: number;
+  trigger_type?: TriggerType;
+}
+
+export interface BidInput {
+  supplier_id: number;
+  carrier_name: string;
+  freight_charges: string;
+  origin_charges: string;
+  destination_charges: string;
+  transit_time_days: number;
+  quote_validity_date: string;
+  remarks?: string;
+}
+
+export class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+
+const BASE = import.meta.env.VITE_API_URL ?? "/api";
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      ...init,
+      headers: { "Content-Type": "application/json", ...init?.headers },
+    });
+  } catch {
+    throw new ApiError(0, "Cannot reach the server. Is the backend running?");
+  }
+  const body = await res.json().catch(() => null);
+  if (!res.ok) throw new ApiError(res.status, body?.detail ?? `Request failed (${res.status})`);
+  return body as T;
+}
+
+export const api = {
+  listRfqs: (status?: AuctionStatus) => request<RfqSummary[]>(`/rfqs${status ? `?status=${status}` : ""}`),
+  getRfq: (id: number) => request<RfqDetail>(`/rfqs/${id}`),
+  createRfq: (input: RfqCreateInput) => request<RfqDetail>("/rfqs", { method: "POST", body: JSON.stringify(input) }),
+  listBids: (id: number) => request<Bid[]>(`/rfqs/${id}/bids`),
+  activity: (id: number) => request<AuctionEvent[]>(`/rfqs/${id}/activity`),
+  submitBid: (id: number, input: BidInput) =>
+    request<BidResult>(`/rfqs/${id}/bids`, { method: "POST", body: JSON.stringify(input) }),
+  suppliers: () => request<Supplier[]>("/suppliers"),
+  createSupplier: (name: string, contact_email?: string) =>
+    request<Supplier>("/suppliers", { method: "POST", body: JSON.stringify({ name, contact_email }) }),
+  metrics: () => request<Metrics>("/metrics"),
+};
